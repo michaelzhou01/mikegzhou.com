@@ -4,3 +4,5 @@ Personal site. Static files in `public/`, served by Cloudflare Workers (static a
 
 - `npm run dev` — local preview at http://localhost:8787
 - `npm run deploy` — deploy to mikegzhou.com
+
+Icons and the social card are rendered from `design/` with headless Chrome.

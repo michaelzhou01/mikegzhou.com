@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;width:1200px;height:630px;background:#0a0a0b;overflow:hidden;color:#ecebe6}
+  canvas{position:absolute;inset:0}
+  .v{position:absolute;inset:0;background:radial-gradient(110% 100% at 10% 95%,rgba(10,10,11,.96) 0%,rgba(10,10,11,.6) 40%,rgba(10,10,11,0) 72%)}
+  .c{position:absolute;left:72px;bottom:84px}
+  .m{font:500 22px "JetBrains Mono",monospace;color:#8b8a84;letter-spacing:.02em}
+  .d{display:inline-block;width:12px;height:12px;border-radius:50%;background:#d4ff3a;box-shadow:0 0 18px #d4ff3a;margin-right:14px;vertical-align:1px}
+  h1{font:italic 400 168px/0.9 "Instrument Serif",serif;letter-spacing:-.035em;margin:18px 0 26px}
+  .t{font:400 26px "JetBrains Mono",monospace;color:#ecebe6}.t b{color:#d4ff3a;font-weight:400}
+  .u{position:absolute;top:48px;left:72px}.r{position:absolute;top:48px;right:72px}
+</style></head><body>
+<canvas id="c" width="1200" height="630"></canvas><div class="v"></div>
+<div class="m u">mikegzhou.com</div><div class="m r">q = (44, 11)</div>
+<div class="c"><div class="m"><span class="d"></span>new york</div><h1>Mike Zhou</h1>
+<div class="t">engineer, <b>inference infrastructure</b> at reflection</div></div>
+<script>
+const x=document.getElementById('c').getContext('2d'),R=' .·:-=+*#%@',C=22,qx=880,qy=250;
+let s=7;const rnd=()=>(s=(s*16807)%2147483647)/2147483647;
+x.font='14px "JetBrains Mono",monospace';x.textAlign='center';x.textBaseline='middle';
+const keys=[];
+for(let r=0;r<29;r++)for(let c=0;c<55;c++){const X=c*C+11,Y=r*C+11,k=rnd(),d2=(X-qx)**2+(Y-qy)**2;
+ let v=.16+.13*(Math.sin(c*.21)+Math.sin(r*.27+1)+Math.sin((c+r)*.13))/3+Math.exp(-d2/36000)*.7*(.4+k);v=Math.min(1,v);
+ const ch=R[Math.min(10,v*11|0)];if(ch!==' '){x.fillStyle=v>.78?'#d4ff3a':`rgba(236,235,230,${.08+v*.6})`;x.fillText(ch,X,Y)}
+ if(d2>5000&&d2<90000&&k>.93)keys.push([k,X,Y])}
+keys.sort((a,b)=>b[0]-a[0]).slice(0,6).forEach(([k,X,Y],i)=>{x.strokeStyle=i?'rgba(106,227,255,.6)':'#d4ff3a';x.lineWidth=i?1.4:2.4;
+ x.beginPath();x.moveTo(qx,qy);x.quadraticCurveTo((qx+X)/2,Math.min(qy,Y)-70,X,Y);x.stroke();x.fillStyle=i?'#6ae3ff':'#d4ff3a';x.fillRect(X-4,Y-4,8,8)});
+x.strokeStyle='#d4ff3a';x.lineWidth=2;x.beginPath();x.arc(qx,qy,13,0,7);x.stroke();
+x.beginPath();x.moveTo(qx-24,qy);x.lineTo(qx+24,qy);x.moveTo(qx,qy-24);x.lineTo(qx,qy+24);x.stroke();
+</script></body></html>
