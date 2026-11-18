@@ -3,40 +3,68 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Michael Zhou</title>
-  <meta name="description" content="Michael Zhou — personal site.">
+  <title>Mike Zhou</title>
+  <meta name="description" content="Mike Zhou is an engineer working on inference infrastructure at Reflection in New York.">
+  <meta name="theme-color" content="#0a0a0b">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
+  <section class="hero">
+    <canvas id="field" aria-hidden="true"></canvas>
+    <div class="hud hud-tl mono">mikegzhou.com</div>
+    <div class="hud hud-tr mono" id="coords">q = (0, 0)</div>
+
+    <div class="hero-copy">
+      <p class="eyebrow mono"><span class="dot"></span> new york</p>
+      <h1 id="name" aria-label="Mike Zhou">Mike Zhou</h1>
+      <p class="stream mono" id="stream" aria-label="Engineer, inference infrastructure at Reflection."></p>
+      <p class="metrics mono" id="metrics">&nbsp;</p>
+    </div>
+
+    <div class="hud hud-bl mono dim">move to query · click to prefill</div>
+    <a class="hud hud-br mono scroll-cue" href="#about">↓</a>
+  </section>
+
   <main>
-    <header>
-      <h1>Michael Zhou</h1>
-      <p class="tagline">Software engineer. Builder of small, useful things.</p>
-    </header>
-
-    <section>
-      <h2>About</h2>
-      <p>Hi, I'm Michael. This is my corner of the internet — a place for projects, notes, and whatever I'm currently curious about.</p>
+    <section id="about" class="block">
+      <h2 class="label mono"><span>01</span> about</h2>
+      <p class="lede">
+        I'm an engineer working on <em>inference infrastructure</em> at
+        <a href="https://reflection.ai">Reflection</a> in New York.
+      </p>
+      <p>
+        That's the part of the stack that takes a trained model and serves it: batching, KV caches,
+        GPU utilization, latency. More here eventually.
+      </p>
     </section>
 
-    <section>
-      <h2>Projects</h2>
-      <ul class="list">
-        <li><a href="#">Project one</a> <span>— a short description</span></li>
-        <li><a href="#">Project two</a> <span>— a short description</span></li>
+    <section class="block">
+      <h2 class="label mono"><span>02</span> roughly what that looks like</h2>
+      <figure class="batch">
+        <canvas id="batch" aria-label="Animation of continuous batching: requests of different lengths fill GPU slots as soon as they free up."></canvas>
+        <figcaption class="mono">
+          <span>continuous batching. each color is a request; bright cell = prefill.</span>
+          <span id="util">util —</span>
+        </figcaption>
+      </figure>
+    </section>
+
+    <section class="block">
+      <h2 class="label mono"><span>03</span> elsewhere</h2>
+      <ul class="links mono">
+        <li><a href="https://github.com/michaelzhou01">github ↗</a></li>
       </ul>
     </section>
 
-    <section>
-      <h2>Elsewhere</h2>
-      <ul class="links">
-        <li><a href="https://github.com/">GitHub</a></li>
-        <li><a href="https://www.linkedin.com/">LinkedIn</a></li>
-      </ul>
-    </section>
-
-    <footer>© <span id="y"></span> Michael Zhou</footer>
+    <footer class="mono dim">
+      <span>© <span id="y"></span> mike zhou</span>
+      <span><span id="tok">0</span> tokens generated on this page</span>
+    </footer>
   </main>
-  <script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+
+  <script src="/main.js"></script>
 </body>
 </html>
