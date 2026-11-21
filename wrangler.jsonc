@@ -3,6 +3,9 @@
   "name": "mikegzhou",
   "main": "src/index.js",
   "compatibility_date": "2026-11-01",
+  // served only on mikegzhou.com; no *.workers.dev address or preview URLs
+  "workers_dev": false,
+  "preview_urls": false,
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
