@@ -33,14 +33,14 @@
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
-  <div class="cursor" aria-hidden="true"><span class="cursor-ring"></span><span class="cursor-dot"></span></div>
 
   <header class="hud mono">
     <a href="#top" class="hud-brand"><span class="dot"></span>mike zhou</a>
     <nav class="hud-nav">
       <a href="#about">about</a>
       <a href="#anatomy">request</a>
-      <a href="#figures">figures</a>
+      <a href="#experts">experts</a>
+      <a href="#explore">throughput</a>
       <span class="hud-clock" id="clock">nyc --:--:--</span>
     </nav>
   </header>
@@ -88,36 +88,36 @@
     </div>
   </section>
 
-  <section class="figs" id="figures">
-    <p class="kicker mono"><span>03</span> figures</p>
-    <p class="figs-intro">A few more pieces of the stack. Open one to step through it.</p>
-    <div class="fig-grid">
-      <button class="fig" data-fig="spec" type="button">
-        <canvas aria-hidden="true"></canvas>
-        <span class="fig-meta mono"><span class="fig-n">fig. 2</span>speculative decoding</span>
-        <span class="fig-cap">Guess a few tokens ahead, then check them all in one pass.</span>
-      </button>
-      <button class="fig" data-fig="quant" type="button">
-        <canvas aria-hidden="true"></canvas>
-        <span class="fig-meta mono"><span class="fig-n">fig. 3</span>quantization</span>
-        <span class="fig-cap">Fewer bits per weight, so a big model fits and moves faster.</span>
-      </button>
-      <button class="fig" data-fig="moe" type="button">
-        <canvas aria-hidden="true"></canvas>
-        <span class="fig-meta mono"><span class="fig-n">fig. 4</span>mixture of experts</span>
-        <span class="fig-cap">Each token visits only 2 of 8 experts.</span>
-      </button>
-      <button class="fig" data-fig="tp" type="button">
-        <canvas aria-hidden="true"></canvas>
-        <span class="fig-meta mono"><span class="fig-n">fig. 5</span>tensor parallelism</span>
-        <span class="fig-cap">One layer split across eight GPUs, then summed around a ring.</span>
-      </button>
-      <button class="fig" data-fig="roofline" type="button">
-        <canvas aria-hidden="true"></canvas>
-        <span class="fig-meta mono"><span class="fig-n">fig. 6</span>latency vs. throughput <span class="fig-live">interactive</span></span>
-        <span class="fig-cap">Drag the batch size and watch where the GPU hits its limit.</span>
-      </button>
+  <section class="story" id="experts" data-story="moe" style="--n:3">
+    <div class="pin">
+      <div class="story-copy">
+        <p class="kicker mono"><span>03</span> mixture of experts</p>
+        <ol class="rail mono"><li>route</li><li>compute</li><li>balance</li></ol>
+        <div class="stages">
+          <article class="stage on"><span class="num mono">00 / route</span><h2>Pick two experts.</h2><p>A small router scores every expert for each token and sends it to the top two.</p></article>
+          <article class="stage"><span class="num mono">01 / compute</span><h2>Most weights sit out.</h2><p>Each token runs through only 2 of 8 expert networks, so the model is huge but each token is cheap.</p></article>
+          <article class="stage"><span class="num mono">02 / balance</span><h2>Keep the load even.</h2><p>If the router favours a few experts, they overflow while others sit idle. Training adds a balancing term to spread the work.</p></article>
+        </div>
+      </div>
+      <div class="story-vis">
+        <canvas class="story-canvas" aria-label="Diagram of tokens routed to two of eight experts."></canvas>
+        <span class="vis-corner mono">p = 0.00</span>
+      </div>
     </div>
+  </section>
+
+  <section class="explore" id="explore">
+    <div class="explore-copy">
+      <p class="kicker mono"><span>04</span> latency vs. throughput</p>
+      <h2>Batch until it hurts.</h2>
+      <p>Bigger batches share each read of the weights across more users, so total throughput climbs. But every request’s KV cache is read every step too, so with long contexts the GPU stays memory-bound, and runs out of memory, long before compute is the limit.</p>
+      <div class="controls mono">
+        <label><span>batch size <b id="ex-b"></b></span><input type="range" id="ex-logb" min="0" max="9" step="0.01" value="5"></label>
+        <label><span>context length <b id="ex-c"></b></span><input type="range" id="ex-ctx" min="9" max="15" step="1" value="12"></label>
+      </div>
+      <p class="explore-note mono">drag the sliders</p>
+    </div>
+    <div class="explore-vis"><canvas aria-label="Chart of throughput and per-token latency against batch size."></canvas></div>
   </section>
 
   <footer class="foot">
@@ -133,21 +133,6 @@
   </footer>
 
 
-  <div class="figview" id="figview" hidden role="dialog" aria-modal="true" aria-labelledby="fv-title">
-    <div class="fv-inner">
-      <header class="fv-head mono"><span id="fv-num">fig.</span><button type="button" id="fv-close" aria-label="Close figure">esc ✕</button></header>
-      <div class="fv-body">
-        <div class="fv-copy">
-          <h2 id="fv-title"></h2>
-          <ol class="rail mono" id="fv-rail"></ol>
-          <div class="fv-stage" id="fv-stage"><span class="num mono" id="fv-stage-num"></span><h3 id="fv-stage-h"></h3><p id="fv-stage-p"></p></div>
-          <div class="fv-controls mono" id="fv-controls"></div>
-          <div class="fv-nav mono"><button type="button" id="fv-prev">← prev</button><span id="fv-count"></span><button type="button" id="fv-next">next →</button></div>
-        </div>
-        <div class="fv-vis"><canvas id="fv-canvas" aria-label="Figure animation"></canvas></div>
-      </div>
-    </div>
-  </div>
 
   <script src="/main.js"></script>
   <script src="/story.js"></script>

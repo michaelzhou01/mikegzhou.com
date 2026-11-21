@@ -38,15 +38,6 @@ a { color: inherit; text-decoration: none; }
   60% { transform: translate(-4%, -1%); } 80% { transform: translate(3%, 3%); } 100% { transform: translate(0, 0); }
 }
 
-/* ---------- cursor ---------- */
-.cursor { display: none; }
-html.has-cursor, html.has-cursor * { cursor: none !important; }
-html.has-cursor .cursor { display: block; position: fixed; left: 0; top: 0; z-index: 100; pointer-events: none; }
-.cursor-dot, .cursor-ring { position: fixed; left: 0; top: 0; border-radius: 50%; will-change: transform; }
-.cursor-dot { width: 6px; height: 6px; margin: -3px 0 0 -3px; background: var(--accent); }
-.cursor-ring { width: 36px; height: 36px; margin: -18px 0 0 -18px; border: 1px solid rgba(236, 235, 230, .5); transition: width .25s var(--ease), height .25s var(--ease), margin .25s var(--ease), border-color .25s, background .25s; }
-.cursor-ring.big { width: 72px; height: 72px; margin: -36px 0 0 -36px; border-color: var(--accent); background: rgba(212, 255, 58, .08); }
-
 /* ---------- hud ---------- */
 .hud {
   position: fixed; top: 0; left: 0; right: 0; z-index: 50; display: flex; justify-content: space-between; align-items: center;
@@ -156,64 +147,22 @@ html.has-cursor .cursor { display: block; position: fixed; left: 0; top: 0; z-in
 
 
 
-/* ---------- figures grid ---------- */
-.figs { max-width: 1600px; margin: 0 auto; padding: 14vh 36px 10vh; scroll-margin-top: 40px; }
-.figs-intro { color: #b9b8b2; font-size: 16px; margin: 18px 0 34px; max-width: 46ch; }
-.fig-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
-.fig {
-  all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; gap: 6px;
-  border: 1px solid var(--rule); border-radius: 14px; background: var(--panel); padding: 10px 10px 16px;
-  transition: border-color .25s, transform .35s var(--ease), background .25s;
-}
-.fig:hover, .fig:focus-visible { border-color: rgba(212,255,58,.45); transform: translateY(-3px); background: #101012; }
-.fig:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.fig canvas { display: block; width: 100%; aspect-ratio: 16 / 10; border-radius: 8px; background: #0b0b0d; margin-bottom: 8px; }
-.fig-meta { color: var(--fg); padding: 0 6px; font-size: 12px; }
-.fig-n { color: var(--accent); margin-right: 10px; }
-.fig-live { color: var(--accent-2); margin-left: 8px; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
-.fig-cap { color: var(--muted); font-size: 14px; padding: 0 6px; line-height: 1.5; }
-
-/* ---------- full-screen figure viewer ---------- */
-.figview { position: fixed; inset: 0; z-index: 110; background: rgba(6,6,7,.86); backdrop-filter: blur(10px); display: grid; place-items: center; padding: 3vh 3vw; animation: fv-in .3s var(--ease); }
-.figview[hidden] { display: none; }
-@keyframes fv-in { from { opacity: 0; } }
-.fv-inner { width: min(1400px, 100%); height: min(860px, 100%); display: flex; flex-direction: column; background: var(--bg); border: 1px solid #232327; border-radius: 18px; overflow: hidden; animation: fv-up .45s var(--ease); }
-@keyframes fv-up { from { transform: translateY(16px) scale(.985); opacity: 0; } }
-.fv-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 22px; border-bottom: 1px solid var(--rule); color: var(--accent); }
-.fv-head button, .fv-nav button { font: inherit; color: var(--muted); background: none; border: 1px solid var(--rule); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
-.fv-head button:hover, .fv-nav button:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
-.fv-nav button:disabled { opacity: .35; cursor: default; }
-.fv-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(280px, .75fr) 1.25fr; gap: 28px; padding: 28px; }
-.fv-copy { display: flex; flex-direction: column; min-width: 0; }
-.fv-copy h2 { font: italic 400 clamp(36px, 3.6vw, 56px)/1 var(--serif); letter-spacing: -0.02em; margin: 0 0 22px; }
-.fv-copy .rail { margin: 0 0 30px; grid-template-columns: repeat(var(--n, 3), 1fr); }
-.fv-stage { animation: fv-stage .5s var(--ease); }
-@keyframes fv-stage { from { opacity: 0; transform: translateY(10px); } }
-.fv-stage .num { color: var(--accent); }
-.fv-stage h3 { font: italic 400 clamp(26px, 2.4vw, 36px)/1.05 var(--serif); margin: 10px 0 12px; }
-.fv-stage p { color: #b9b8b2; font-size: 16px; margin: 0; max-width: 40ch; }
-.fv-controls { margin-top: 24px; display: grid; gap: 16px; color: var(--muted); }
-.fv-controls:empty { display: none; }
-.fv-controls label { display: grid; gap: 8px; }
-.fv-controls label span { display: flex; justify-content: space-between; }
-.fv-controls label b { color: var(--fg); font-weight: 400; }
-.fv-controls input[type=range] { width: 100%; accent-color: var(--accent); }
-.fv-nav { margin-top: auto; padding-top: 24px; display: flex; align-items: center; gap: 14px; color: var(--dim); }
-.fv-vis { position: relative; border: 1px solid var(--rule); border-radius: 14px; background: var(--panel); overflow: hidden; min-height: 0; }
-.fv-vis::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5; background-image: radial-gradient(circle, #222226 1px, transparent 1.2px); background-size: 22px 22px; }
-#fv-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-html.fv-open { overflow: hidden; }
-
+/* ---------- explorer ---------- */
+.explore { max-width: 1600px; margin: 0 auto; padding: 16vh 36px 12vh; display: grid; grid-template-columns: minmax(300px, .8fr) 1.2fr; gap: 48px; align-items: center; scroll-margin-top: 40px; }
+.explore h2 { font: italic 400 clamp(44px, 5vw, 84px)/.95 var(--serif); letter-spacing: -0.02em; margin: 26px 0 20px; }
+.explore-copy > p:not(.kicker):not(.explore-note) { color: #b9b8b2; max-width: 38ch; font-size: 17px; margin: 0; }
+.controls { margin-top: 32px; display: grid; gap: 18px; color: var(--muted); max-width: 420px; }
+.controls label { display: grid; gap: 8px; }
+.controls label span { display: flex; justify-content: space-between; }
+.controls label b { color: var(--fg); font-weight: 400; }
+.controls input[type=range] { width: 100%; accent-color: var(--accent); }
+.explore-note { color: var(--dim); margin: 14px 0 0; }
+.explore-vis { position: relative; height: min(72vh, 640px); border: 1px solid var(--rule); border-radius: 16px; background: var(--panel); overflow: hidden; }
+.explore-vis::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5; background-image: radial-gradient(circle, #222226 1px, transparent 1.2px); background-size: 22px 22px; }
+.explore-vis canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 @media (max-width: 860px) {
-  .figs { padding: 10vh 16px 8vh; }
-  .fig-grid { grid-template-columns: 1fr; }
-  .figview { padding: 0; }
-  .fv-inner { height: 100%; border-radius: 0; border: 0; }
-  .fv-body { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; padding: 14px; gap: 14px; }
-  .fv-vis { order: -1; }
-  .fv-copy h2 { font-size: 28px; margin-bottom: 12px; }
-  .fv-copy .rail { margin-bottom: 14px; }
-  .fv-stage h3 { font-size: 24px; margin: 6px 0 6px; }
-  .fv-stage p { font-size: 14px; }
-  .fv-nav { padding-top: 14px; }
+  .explore { grid-template-columns: 1fr; padding: 10vh 16px 8vh; gap: 24px; }
+  .explore h2 { font-size: 38px; margin: 16px 0 12px; }
+  .explore-copy > p:not(.kicker):not(.explore-note) { font-size: 15px; }
+  .explore-vis { height: 60vh; }
 }
