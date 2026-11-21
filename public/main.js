@@ -297,11 +297,48 @@
     const s = 2.8 / (2.8 + z2);
     return [view[0] + x1 * view[2] * s, view[1] - y2 * view[2] * s, z2];
   };
-  const label = (text, x, y, color, size = 12, bg = true) => {
+  // Labels sit in solid pills offset from their point (with a short leader line), never on top of the particles,
+  // and are nudged apart so they don't overlap. `boxes` is reset every frame.
+  let boxes = [], reserved = [], reservedAt = 0;
+  // keep labels off the header and the hero's own text
+  const measureReserved = () => {
+    const hr = hero.getBoundingClientRect();
+    reserved = [{ x: 0, y: 0, w: W, h: 56 }, ...['.hero-copy', '.hero-label', '.hero-cue'].map(sel => {
+      const el = hero.querySelector(sel); if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left - hr.left - 8, y: r.top - hr.top - 8, w: r.width + 16, h: r.height + 16 };
+    }).filter(Boolean)];
+  };
+  const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const label = (text, px, py, { size = 13, color = '#ecebe6', accent = null, alpha = 1, sub = null } = {}) => {
+    lx.save(); lx.globalAlpha = alpha;
     lx.font = `${size}px "JetBrains Mono", monospace`;
-    const w = lx.measureText(text).width;
-    if (bg) { lx.fillStyle = 'rgba(10,10,11,.75)'; lx.fillRect(x + 8, y - size, w + 10, size + 8); }
-    lx.fillStyle = color; lx.fillText(text, x + 13, y);
+    const tw = lx.measureText(text).width;
+    let sw = 0;
+    if (sub) { lx.font = '10px "JetBrains Mono", monospace'; sw = lx.measureText(sub).width + 10; }
+    const padX = 8, h = size + 10, w = tw + padX * 2 + sw + (accent ? 10 : 0);
+    // prefer up-right of the point; flip left near the right edge; step upward until it doesn't collide
+    let bx = px + 14, by = py - h - 10;
+    if (bx + w > W - 8) bx = px - 14 - w;
+    let b = { x: bx, y: by, w, h }, tries = 0;
+    while (boxes.some(o => hit(b, o)) && tries++ < 6) b = { ...b, y: b.y - (h + 4) };
+    if (tries > 6 || b.y < 0 || b.y + h > H || b.x < 0 || b.x + w > W) { lx.restore(); return false; }
+    boxes.push(b);
+    // leader line + point marker
+    lx.strokeStyle = 'rgba(236,235,230,.35)'; lx.lineWidth = 1;
+    lx.beginPath(); lx.moveTo(px, py); lx.lineTo(b.x < px ? b.x + w : b.x, b.y + h); lx.stroke();
+    lx.fillStyle = accent || '#ecebe6'; lx.beginPath(); lx.arc(px, py, 2.2, 0, 7); lx.fill();
+    // pill
+    lx.beginPath(); lx.roundRect(b.x, b.y, w, h, 6);
+    lx.fillStyle = 'rgba(12,12,14,.94)'; lx.fill();
+    lx.strokeStyle = accent ? 'rgba(212,255,58,.45)' : 'rgba(255,255,255,.12)'; lx.stroke();
+    let x = b.x + padX;
+    if (accent) { lx.fillStyle = accent; lx.beginPath(); lx.arc(x + 3, b.y + h / 2, 3, 0, 7); lx.fill(); x += 10; }
+    lx.font = `${size}px "JetBrains Mono", monospace`; lx.textBaseline = 'middle';
+    lx.fillStyle = color; lx.fillText(text, x, b.y + h / 2 + 0.5);
+    if (sub) { lx.font = '10px "JetBrains Mono", monospace'; lx.fillStyle = '#8b8a84'; lx.fillText(sub, x + tw + 10, b.y + h / 2 + 0.5); }
+    lx.restore();
+    return true;
   };
 
   let visible = true, raf = 0, last = now(), hot = 0, hotAt = -9, hoverIdx = -1;
@@ -327,29 +364,24 @@
         let best = 22 * 22;
         P.forEach(([px, py], i) => { const d = (px - mouse.x) ** 2 + (py - mouse.y) ** 2; if (d < best) { best = d; hoverIdx = i; } });
       }
-      lx.textBaseline = 'alphabetic';
+      boxes = [...reserved];
       if (hoverIdx >= 0) {
         const w = DATA.words[hoverIdx];
         nb = w[5].slice(0, 3);
         const [hx, hy] = P[hoverIdx];
-        lx.strokeStyle = 'rgba(212,255,58,.55)'; lx.lineWidth = 1;
-        nb.forEach(j => { const [nx, ny] = P[j]; lx.beginPath(); lx.moveTo(hx, hy); lx.lineTo(nx, ny); lx.stroke(); label(DATA.words[j][0], nx, ny, '#c9c8c2', 13); });
-        label(w[0], hx, hy, '#d4ff3a', 17);
-        label(DATA.cats[w[1]], hx, hy + 19, '#8b8a84', 11, false);
+        lx.strokeStyle = 'rgba(212,255,58,.5)'; lx.lineWidth = 1;
+        nb.forEach(j => { const [nx, ny] = P[j]; lx.beginPath(); lx.moveTo(hx, hy); lx.lineTo(nx, ny); lx.stroke(); });
+        label(w[0], hx, hy, { size: 15, accent: '#d4ff3a', sub: DATA.cats[w[1]] });
+        nb.forEach(j => label(DATA.words[j][0], P[j][0], P[j][1], { size: 13, color: '#c9c8c2' }));
       } else if (z > 1.6) {
-        // zoomed in: label the words facing you, skipping any that would overlap
-        const placed = [], fade = Math.min(1, (z - 1.6) / 0.8);
+        // zoomed in: label the words facing you (nearest first); collisions are skipped
+        const fade = Math.min(1, (z - 1.6) / 0.8);
         DATA.words.map((w, i) => [i, w]).filter(([i]) => { const [px, py, pz] = P[i]; return pz < 0.4 && px > 0 && px < W && py > 0 && py < H; })
-          .sort((a, b) => P[a[0]][2] - P[b[0]][2]).slice(0, 80)
-          .forEach(([i, w]) => {
-            const [px, py] = P[i];
-            if (placed.some(([qx, qy]) => Math.abs(qx - px) < 70 && Math.abs(qy - py) < 16)) return;
-            placed.push([px, py]);
-            label(w[0], px, py, w[1] === hot ? `rgba(212,255,58,${fade})` : `rgba(201,200,194,${0.85 * fade})`, 12, false);
-          });
+          .sort((a, b) => P[a[0]][2] - P[b[0]][2]).slice(0, 40)
+          .forEach(([i, w]) => label(w[0], P[i][0], P[i][1], { size: 13, alpha: fade, accent: w[1] === hot ? '#d4ff3a' : null }));
       } else {
-        DATA.words.map((w, i) => [i, w]).filter(([, w]) => w[1] === hot).sort((a, b) => P[a[0]][2] - P[b[0]][2]).slice(0, 5)
-          .forEach(([i, w]) => label(w[0], P[i][0], P[i][1], 'rgba(212,255,58,.9)', 12, false));
+        DATA.words.map((w, i) => [i, w]).filter(([, w]) => w[1] === hot).sort((a, b) => P[a[0]][2] - P[b[0]][2]).slice(0, 4)
+          .forEach(([i, w]) => label(w[0], P[i][0], P[i][1], { size: 13, accent: '#d4ff3a' }));
       }
     }
     cv.style.cursor = hoverIdx >= 0 ? 'pointer' : '';
@@ -362,6 +394,7 @@
     gl.uniform2f(U.uRot, rotX, rotY);
     gl.uniform3f(U.uView, ...view);
     gl.uniform1f(U.uZoom, z);
+    if (!reserved.length || t - reservedAt > 0.5) { measureReserved(); reservedAt = t; } // hero copy moves on scroll
     gl.uniform1f(U.uHot, reduce ? -1 : hot);
     gl.uniform1f(U.uWord, hoverIdx >= 0 ? hoverIdx : -5);
     gl.uniform3f(U.uNb, ...nb);
