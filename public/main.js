@@ -12,7 +12,7 @@
     tokEl.textContent = (global === null ? tokens : global + unsent).toLocaleString();
     if (global !== null) capEl.innerHTML = `tokens generated on this page, by everyone, ever.<br>you: ${tokens.toLocaleString()}`;
   };
-  const bump = (n = 1) => { tokens += n; unsent += n; render(); window.MZ.onBump?.(n); };
+  const bump = (n = 1) => { tokens += n; unsent += n; render(); };
   const flush = async () => {
     if (!unsent) return;
     const n = unsent; unsent = 0;
@@ -280,7 +280,7 @@
     }
     mouse.x = x; mouse.y = y;
   });
-  const firePulse = (x, y) => { pulse = [x, y, now()]; bump(64 + ((Math.random() * 400) | 0)); window.MZ.onPulse?.(); };
+  const firePulse = (x, y) => { pulse = [x, y, now()]; bump(64 + ((Math.random() * 400) | 0)); };
   cv.addEventListener('pointerup', e => {
     if (drag && moved < 6 && !pinch) { const [x, y] = local(e); firePulse(x, y); }
     endTouch(e);
