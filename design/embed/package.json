@@ -1,0 +1,2 @@
+{ "name": "embed", "private": true, "type": "module",
+  "dependencies": { "@huggingface/transformers": "4.3.2", "umap-js": "1.4.0" } }
