@@ -42,20 +42,23 @@
       <a href="#anatomy">request</a>
       <a href="#spec">speculation</a>
       <a href="#quant">bits</a>
+      <button class="hud-btn" id="sound" aria-pressed="false">sound off</button>
+      <button class="hud-btn hud-k" id="palette-btn" aria-label="Open command palette">/</button>
       <span class="hud-clock" id="clock">nyc --:--:--</span>
     </nav>
   </header>
 
   <section class="hero" id="top">
     <canvas id="gl" aria-hidden="true"></canvas>
+    <canvas id="gl-labels" aria-hidden="true"></canvas>
     <div class="hero-copy">
       <h1 class="hero-name">Mike Zhou</h1>
       <p class="stream mono" id="stream" data-text="engineer · inference infrastructure @ reflection · new york"></p>
       <p class="metrics mono" id="metrics">&nbsp;</p>
     </div>
     <div class="hero-label mono" aria-hidden="true">
-      <span>fig. 0 — latent space</span>
-      <span class="dim">16 clusters · drag to rotate · click to pulse</span>
+      <span>fig. 0 — latent space · <b id="hot-cat">…</b></span>
+      <span class="dim">318 real word embeddings · hover · drag to rotate · pinch to zoom</span>
     </div>
     <a href="#about" class="hero-cue mono">scroll <span>↓</span></a>
   </section>
@@ -127,7 +130,7 @@
   <footer class="foot">
     <div class="foot-count" aria-live="off">
       <span class="foot-num" id="tok">0</span>
-      <span class="foot-cap mono">tokens generated on this page so far.<br>keep scrolling, it counts.</span>
+      <span class="foot-cap mono" id="tok-cap">tokens generated on this page so far.<br>keep scrolling, it counts.</span>
     </div>
     <div class="foot-row mono">
       <a href="https://github.com/michaelzhou01" target="_blank" rel="noopener">github ↗</a>
@@ -136,7 +139,16 @@
     </div>
   </footer>
 
+  <div class="palette" id="palette" hidden>
+    <div class="palette-box" role="dialog" aria-label="Command palette">
+      <input id="palette-input" class="mono" placeholder="type a command…" autocomplete="off">
+      <ul id="palette-list" class="mono" role="listbox"></ul>
+      <p class="palette-foot mono">↑↓ to move · ↵ to run · esc to close</p>
+    </div>
+  </div>
+
   <script src="/main.js"></script>
   <script src="/story.js"></script>
+  <script src="/extras.js"></script>
 </body>
 </html>

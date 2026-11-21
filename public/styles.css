@@ -147,3 +147,27 @@ html.has-cursor .cursor { display: block; position: fixed; left: 0; top: 0; z-in
   html { scroll-behavior: auto; }
   .grain, .dot, .stream .caret, .hero-cue span { animation: none; }
 }
+
+/* ---------- prototype: hero labels, hud buttons ---------- */
+#gl, #gl-labels { transform-origin: 60% 48%; will-change: transform, opacity; }
+#gl-labels { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.hero-copy { will-change: transform, opacity; }
+.hero-label b { color: var(--accent); font-weight: 400; }
+.hud-btn { font: inherit; color: var(--muted); background: none; border: 0; padding: 0; cursor: pointer; }
+.hud-btn:hover, .hud-btn[aria-pressed="true"] { color: var(--accent); }
+.hud-k { border: 1px solid var(--dim); border-radius: 4px; width: 20px; height: 20px; line-height: 18px; text-align: center; }
+
+/* ---------- prototype: command palette ---------- */
+.palette { position: fixed; inset: 0; z-index: 120; background: rgba(5,5,6,.6); backdrop-filter: blur(6px); display: grid; place-items: start center; padding-top: 18vh; }
+.palette[hidden] { display: none; }
+.palette-box { width: min(560px, calc(100vw - 32px)); background: #111114; border: 1px solid #2a2a2e; border-radius: 12px; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+.palette input { width: 100%; font-size: 15px; color: var(--fg); background: none; border: 0; border-bottom: 1px solid var(--rule); padding: 16px 18px; outline: none; }
+.palette ul { list-style: none; margin: 0; padding: 6px; max-height: 50vh; overflow: auto; }
+.palette li { padding: 10px 12px; border-radius: 7px; color: var(--muted); cursor: pointer; font-size: 13px; }
+.palette li[aria-selected="true"] { background: rgba(212,255,58,.1); color: var(--accent); }
+.palette li.empty { cursor: default; }
+.palette-foot { color: var(--dim); margin: 0; padding: 10px 18px; border-top: 1px solid var(--rule); font-size: 11px; }
+
+@media (max-width: 860px) {
+  .hud-btn#sound { display: none; }
+}

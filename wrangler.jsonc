@@ -1,11 +1,19 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "mikegzhou",
+  "main": "src/index.js",
   "compatibility_date": "2026-11-01",
   "assets": {
     "directory": "./public",
-    "not_found_handling": "404-page"
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    // only the API runs code; every page and file is still served straight from static assets
+    "run_worker_first": ["/api/*"]
   },
+  "durable_objects": {
+    "bindings": [{ "name": "COUNTER", "class_name": "TokenCounter" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TokenCounter"] }],
   "routes": [
     { "pattern": "mikegzhou.com", "custom_domain": true },
     { "pattern": "www.mikegzhou.com", "custom_domain": true }
