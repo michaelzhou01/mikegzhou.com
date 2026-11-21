@@ -1,6 +1,5 @@
 (() => {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const fine = matchMedia('(pointer: fine)').matches;
   const root = document.documentElement;
 
   /* ---------- shared: token counter ---------- */
@@ -32,20 +31,6 @@
   const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
   const tickClock = () => { clock.textContent = 'nyc ' + fmt.format(new Date()); };
   tickClock(); setInterval(tickClock, 1000);
-
-  /* ---------- custom cursor ---------- */
-  if (fine && !reduce) {
-    root.classList.add('has-cursor');
-    const dot = document.querySelector('.cursor-dot'), ring = document.querySelector('.cursor-ring');
-    let mx = -100, my = -100, rx = -100, ry = -100;
-    addEventListener('pointermove', e => { mx = e.clientX; my = e.clientY; dot.style.transform = `translate(${mx}px,${my}px)`; });
-    document.addEventListener('pointerover', e => ring.classList.toggle('big', !!e.target.closest('a, button')));
-    (function follow() {
-      rx += (mx - rx) * 0.18; ry += (my - ry) * 0.18;
-      ring.style.transform = `translate(${rx}px,${ry}px)`;
-      requestAnimationFrame(follow);
-    })();
-  }
 
   /* ---------- tagline streamed token by token ---------- */
   function streamTagline(delay) {

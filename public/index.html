@@ -33,15 +33,14 @@
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
-  <div class="cursor" aria-hidden="true"><span class="cursor-ring"></span><span class="cursor-dot"></span></div>
 
   <header class="hud mono">
     <a href="#top" class="hud-brand"><span class="dot"></span>mike zhou</a>
     <nav class="hud-nav">
       <a href="#about">about</a>
       <a href="#anatomy">request</a>
-      <a href="#spec">speculation</a>
-      <a href="#quant">bits</a>
+      <a href="#experts">experts</a>
+      <a href="#explore">throughput</a>
       <span class="hud-clock" id="clock">nyc --:--:--</span>
     </nav>
   </header>
@@ -89,40 +88,36 @@
     </div>
   </section>
 
-  <section class="story" id="spec" data-story="spec" style="--n:3">
+  <section class="story" id="experts" data-story="moe" style="--n:3">
     <div class="pin">
       <div class="story-copy">
-        <p class="kicker mono"><span>03</span> speculative decoding</p>
-        <ol class="rail mono"><li>draft</li><li>verify</li><li>commit</li></ol>
+        <p class="kicker mono"><span>03</span> mixture of experts</p>
+        <ol class="rail mono"><li>route</li><li>compute</li><li>balance</li></ol>
         <div class="stages">
-          <article class="stage on"><span class="num mono">00 / draft</span><h2>Guess ahead.</h2><p>A small, fast model drafts the next few tokens. Each guess is cheap.</p></article>
-          <article class="stage"><span class="num mono">01 / verify</span><h2>Check every guess at once.</h2><p>The big model scores all the drafts in a single forward pass and keeps them up to the first miss.</p></article>
-          <article class="stage"><span class="num mono">02 / commit</span><h2>Several tokens, one pass.</h2><p>The accepted tokens plus one correction land together. The output is identical, just faster.</p></article>
+          <article class="stage on"><span class="num mono">00 / route</span><h2>Pick two experts.</h2><p>A small router scores every expert for each token and sends it to the top two.</p></article>
+          <article class="stage"><span class="num mono">01 / compute</span><h2>Most weights sit out.</h2><p>Each token runs through only 2 of 8 expert networks, so the model is huge but each token is cheap.</p></article>
+          <article class="stage"><span class="num mono">02 / balance</span><h2>Keep the load even.</h2><p>If the router favours a few experts, they overflow while others sit idle. Training adds a balancing term to spread the work.</p></article>
         </div>
       </div>
       <div class="story-vis">
-        <canvas class="story-canvas" aria-label="Diagram of speculative decoding: a draft model guesses tokens, the target model verifies them in one pass."></canvas>
+        <canvas class="story-canvas" aria-label="Diagram of tokens routed to two of eight experts."></canvas>
         <span class="vis-corner mono">p = 0.00</span>
       </div>
     </div>
   </section>
 
-  <section class="story" id="quant" data-story="quant" style="--n:3">
-    <div class="pin">
-      <div class="story-copy">
-        <p class="kicker mono"><span>04</span> quantization</p>
-        <ol class="rail mono"><li>bf16</li><li>fp8</li><li>int4</li></ol>
-        <div class="stages">
-          <article class="stage on"><span class="num mono">00 / bf16</span><h2>Sixteen bits a weight.</h2><p>A 70B-parameter model at 16 bits is about 140 GB, more than any single GPU holds.</p></article>
-          <article class="stage"><span class="num mono">01 / fp8</span><h2>Half the bits.</h2><p>Snap each weight to a coarser grid. The model barely notices, and memory traffic halves.</p></article>
-          <article class="stage"><span class="num mono">02 / int4</span><h2>Sixteen levels.</h2><p>Now you can see the grid. The art is choosing where those levels fall, so it still fits and still thinks.</p></article>
-        </div>
+  <section class="explore" id="explore">
+    <div class="explore-copy">
+      <p class="kicker mono"><span>04</span> latency vs. throughput</p>
+      <h2>Batch until it hurts.</h2>
+      <p>Bigger batches share each read of the weights across more users, so total throughput climbs. But every request’s KV cache is read every step too, so with long contexts the GPU stays memory-bound, and runs out of memory, long before compute is the limit.</p>
+      <div class="controls mono">
+        <label><span>batch size <b id="ex-b"></b></span><input type="range" id="ex-logb" min="0" max="9" step="0.01" value="5"></label>
+        <label><span>context length <b id="ex-c"></b></span><input type="range" id="ex-ctx" min="9" max="15" step="1" value="12"></label>
       </div>
-      <div class="story-vis">
-        <canvas class="story-canvas" aria-label="Diagram of model weights being quantized from 16 to 8 to 4 bits."></canvas>
-        <span class="vis-corner mono">p = 0.00</span>
-      </div>
+      <p class="explore-note mono">drag the sliders</p>
     </div>
+    <div class="explore-vis"><canvas aria-label="Chart of throughput and per-token latency against batch size."></canvas></div>
   </section>
 
   <footer class="foot">
@@ -136,6 +131,7 @@
       <span>© <span id="y"></span></span>
     </div>
   </footer>
+
 
 
   <script src="/main.js"></script>

@@ -253,182 +253,162 @@
   }
 
   /* =====================================================================
-     speculative decoding
+     mixture of experts
      ===================================================================== */
-  const SCTX = 'Sunlight scatters off air molecules, and';
-  const DRAFT = [' blue', ' light', ' scatters', ' less', ' slowly'];
-  const ACC = 3, FIX = ' the';
-
-  function chipRow(items, y, fs, gap = 10) {
-    font(fs);
-    const pad = fs * 0.55;
-    const ws = items.map(s => ctx.measureText(s.trim()).width + pad * 2);
-    const total = ws.reduce((a, b) => a + b, 0) + gap * (items.length - 1);
-    let x = (cw - total) / 2;
-    return items.map((s, i) => { const r = { x, y, w: ws[i], h: fs * 2, s: s.trim(), pad }; x += ws[i] + gap; return r; });
+  const MOE_T = ['the', 'GPU', 'is', 'fast', 'because', 'tensor', 'cores', 'scale'];
+  const ROUTE = [[0, 6], [0, 3], [0, 6], [0, 3], [0, 1], [0, 6], [0, 3], [4, 6]]; // top-2 experts per token
+  const RW = (() => { const r = rng(5); return ROUTE.map(() => { const a = 0.55 + r() * 0.3; return [a, 1 - a]; }); })();
+  const SKEW = [7, 1, 0, 3, 1, 0, 4, 0], BAL = [2, 2, 2, 2, 2, 2, 2, 2], CAP = 3;
+  function moeLayout() {
+    const pad = 28, top = ch * 0.13, area = ch * 0.72, fs = clamp(cw * 0.024, 11, 16);
+    const ex = cw * 0.56, bw = Math.min(120, cw * 0.15), rowE = area / 8;
+    const tok = MOE_T.map((s, k) => { font(fs); const w = ctx.measureText(s).width + fs; return { x: pad, y: top + (k + 0.5) * (area / 8), w, h: fs * 1.8, s }; });
+    const exp = BAL.map((_, e) => ({ x: ex, y: top + (e + 0.5) * rowE, w: bw, h: Math.min(rowE * 0.72, 34) }));
+    return { pad, top, area, fs, tok, exp, barX: ex + bw + 16, barW: cw - pad - (ex + bw + 16) };
   }
-  function chip(c, { stroke, fill, text = C.fg, dash } = {}) {
-    box(c.x, c.y - c.h / 2, c.w, c.h, 7);
-    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-    if (stroke) { if (dash) ctx.setLineDash(dash); ctx.strokeStyle = stroke; ctx.stroke(); ctx.setLineDash([]); }
-    ctx.fillStyle = text; ctx.textBaseline = 'middle'; ctx.fillText(c.s, c.x + c.pad, c.y);
-  }
-  function specHeader(fs) {
-    let f = fs; font(f); while (ctx.measureText(SCTX + ' …').width > cw * 0.9 && f > 9) font(--f);
-    ctx.fillStyle = C.mute; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(SCTX + ' …', cw / 2, ch * 0.2);
-    font(10); ctx.fillStyle = C.dim; ctx.fillText('context so far', cw / 2, ch * 0.2 - 24);
-    ctx.textAlign = 'left';
-  }
-  const specFs = () => clamp(cw * 0.034, 12, 24);
-
-  function sDraft(lp, t) {
-    const fs = specFs(); specHeader(fs);
-    const row = chipRow(DRAFT, ch * 0.46, fs);
-    const shown = Math.min(DRAFT.length, Math.floor(clamp(lp * 1.4) * (DRAFT.length + 1)));
-    row.forEach((c, i) => {
-      if (i >= shown) { box(c.x, c.y - c.h / 2, c.w, c.h, 7); ctx.strokeStyle = C.faint; ctx.stroke(); return; }
-      const a = i === shown - 1 ? clamp((lp * 1.4 * (DRAFT.length + 1) - i)) : 1;
-      ctx.save(); ctx.globalAlpha *= a; ctx.translate(0, (1 - a) * -12);
-      chip(c, { stroke: cyan(.85), fill: cyan(.06), dash: [4, 3] });
-      ctx.restore();
+  function moeBase(L, { loads = null, activeAlpha = null } = {}) {
+    L.exp.forEach((b, e) => {
+      box(b.x, b.y - b.h / 2, b.w, b.h, 6);
+      const on = activeAlpha ? activeAlpha[e] : 0;
+      ctx.fillStyle = on ? lime(0.08 + 0.5 * on) : '#121215'; ctx.fill();
+      ctx.strokeStyle = on ? lime(0.75) : C.dim; ctx.stroke();
+      font(clamp(L.fs * 0.8, 10, 13)); ctx.textBaseline = 'middle'; ctx.fillStyle = on ? C.fg : C.mute;
+      ctx.fillText(`expert ${e}`, b.x + 10, b.y);
     });
-    // draft model ticks
-    font(11); ctx.fillStyle = C.cyan; ctx.textAlign = 'center';
-    ctx.fillText(`draft model · ${shown}/${DRAFT.length} guesses`, cw / 2, ch * 0.46 + fs * 2.4);
-    ctx.textAlign = 'left';
-    const bx = (cw - 5 * 34) / 2, by = ch * 0.72;
-    for (let i = 0; i < 5; i++) { ctx.fillStyle = i < shown ? cyan(.8) : C.faint; ctx.fillRect(bx + i * 34, by, 28, 8); }
-    font(10); ctx.fillStyle = C.mute; ctx.textAlign = 'center';
-    ctx.fillText('~3 ms per draft step', cw / 2, by + 26); ctx.textAlign = 'left';
   }
-
-  function sVerify(lp, t) {
-    const fs = specFs(); specHeader(fs);
-    const row = chipRow(DRAFT, ch * 0.46, fs);
-    const s = clamp(lp * 1.5);
-    const x0 = row[0].x, x1 = row[row.length - 1].x + row[row.length - 1].w;
-    // the single target pass sweeping across
-    const sx = x0 + (x1 - x0) * s;
-    const g = ctx.createLinearGradient(sx - 80, 0, sx, 0);
-    g.addColorStop(0, lime(0)); g.addColorStop(1, lime(.22));
-    ctx.fillStyle = g; ctx.fillRect(sx - 80, row[0].y - fs * 1.6, 80, fs * 3.2);
-    ctx.fillStyle = C.lime; ctx.fillRect(sx, row[0].y - fs * 1.6, 2, fs * 3.2);
-    row.forEach((c, i) => {
-      const done = s > (i + 0.6) / row.length;
-      if (!done) { chip(c, { stroke: cyan(.6), dash: [4, 3] }); return; }
-      if (i < ACC) chip(c, { stroke: lime(.9), fill: lime(.12) });
-      else if (i === ACC) {
-        chip(c, { stroke: coral(.9), fill: coral(.08), text: C.mute });
-        ctx.strokeStyle = coral(.9); ctx.beginPath(); ctx.moveTo(c.x + 6, c.y); ctx.lineTo(c.x + c.w - 6, c.y); ctx.stroke();
-        const fx = chipRow([FIX], 0, fs)[0];
-        chip({ ...fx, x: c.x + (c.w - fx.w) / 2, y: c.y + fs * 2.7 }, { fill: C.lime, text: '#0a0a0b' });
-      } else { ctx.save(); ctx.globalAlpha *= 0.3; chip(c, { stroke: C.dim, text: C.mute }); ctx.restore(); }
-      font(fs); ctx.textAlign = 'center';
-      ctx.fillStyle = i < ACC ? C.lime : i === ACC ? coral(1) : C.dim;
-      ctx.fillText(i < ACC ? '✓' : i === ACC ? '✗' : '–', c.x + c.w / 2, c.y - fs * 1.9);
-      ctx.textAlign = 'left';
+  function moeTokens(L, n) {
+    L.tok.forEach((t, k) => {
+      if (k >= n) return;
+      box(t.x, t.y - t.h / 2, t.w, t.h, 6); ctx.strokeStyle = C.dim; ctx.stroke();
+      font(L.fs); ctx.textBaseline = 'middle'; ctx.fillStyle = C.fg; ctx.fillText(t.s, t.x + L.fs / 2, t.y);
     });
-    // bracket: one pass over all five
-    const by = ch * 0.46 + fs * 4.6;
-    ctx.strokeStyle = lime(.6);
-    ctx.beginPath(); ctx.moveTo(x0, by - 6); ctx.lineTo(x0, by); ctx.lineTo(x1, by); ctx.lineTo(x1, by - 6); ctx.stroke();
-    font(11); ctx.fillStyle = C.lime; ctx.textAlign = 'center';
-    ctx.fillText('target model · one forward pass over all five', (x0 + x1) / 2, by + 20);
-    ctx.textAlign = 'left';
   }
-
-  function sCommit(lp, t) {
-    const fs = specFs(); specHeader(fs);
-    const e = ease(lp * 2.2);
-    const keep = [...DRAFT.slice(0, ACC), FIX];
-    const row = chipRow(keep, ch * 0.4, fs);
-    row.forEach((c, i) => chip(c, i === ACC ? { fill: C.lime, text: '#0a0a0b' } : { stroke: lime(.9), fill: lime(.14) }));
-    // rejected drafts fall away
-    const rej = chipRow(DRAFT.slice(ACC), ch * 0.4 + fs * 2.6 + e * 40, fs);
-    ctx.save(); ctx.globalAlpha *= 1 - e; rej.forEach(c => chip(c, { stroke: coral(.7), text: C.mute })); ctx.restore();
-    font(11); ctx.fillStyle = C.lime; ctx.textAlign = 'center';
-    ctx.fillText('+4 tokens from 1 target pass', cw / 2, ch * 0.4 - fs * 2);
-    ctx.textAlign = 'left';
-    // timeline comparison
-    const m = 28, full = cw - m * 2, scale = full / 130, grow = clamp((lp - 0.15) * 2);
-    const rowY = [ch * 0.66, ch * 0.66 + 54];
-    font(11);
-    ctx.fillStyle = C.mute; ctx.fillText('standard decode', m, rowY[0] - 12);
-    for (let i = 0; i < 4; i++) { const w = 30 * scale * grow; ctx.fillStyle = i % 2 ? '#3a3a42' : '#4a4a52'; ctx.fillRect(m + i * 30 * scale * grow, rowY[0], w - 2, 14); }
-    ctx.fillStyle = C.mute; ctx.fillText('speculative', m, rowY[1] - 12);
-    let x = m;
-    for (let i = 0; i < 5; i++) { const w = 3 * scale * grow; ctx.fillStyle = cyan(.85); ctx.fillRect(x, rowY[1], Math.max(0, w - 2), 14); x += w; }
-    ctx.fillStyle = C.lime; ctx.fillRect(x, rowY[1], Math.max(0, 30 * scale * grow - 2), 14);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = C.mute; ctx.fillText(`4 tokens · ${Math.round(120 * grow)} ms`, cw - m, rowY[0] - 12);
-    ctx.fillStyle = C.lime; ctx.fillText(`4 tokens · ${Math.round(45 * grow)} ms${grow >= 1 ? '  →  ~2.7× here' : ''}`, cw - m, rowY[1] - 12);
-    ctx.textAlign = 'left';
+  function moeRoutes(L, n, alpha = 1) {
+    ROUTE.slice(0, n).forEach(([a, b], k) => {
+      const t = L.tok[k];
+      [[a, RW[k][0], lime], [b, RW[k][1], cyan]].forEach(([e, w, col]) => {
+        const x0 = t.x + t.w, y0 = t.y, x1 = L.exp[e].x, y1 = L.exp[e].y, mx = (x0 + x1) / 2;
+        ctx.strokeStyle = col((0.18 + 0.7 * w) * alpha); ctx.lineWidth = 0.8 + w * 2.4;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.bezierCurveTo(mx, y0, mx, y1, x1, y1); ctx.stroke();
+      });
+    });
+    ctx.lineWidth = 1;
   }
-
-  /* =====================================================================
-     quantization
-     ===================================================================== */
-  const normal = r => { let u = 0; while (!u) u = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.283 * r()); };
-  const QR = 12, QC = 24;
-  const QW = (() => { const r = rng(11); return Array.from({ length: QR * QC }, () => normal(r) * 0.95); })();
-  const HIST = (() => { const r = rng(23), b = new Array(72).fill(0); for (let i = 0; i < 6000; i++) { const v = normal(r) * 0.95, k = Math.floor((v + 3) / 6 * 72); if (k >= 0 && k < 72) b[k]++; } return b; })();
-  const QS = [
-    { bits: 16, name: 'bf16', levels: 0, gb: 140 },
-    { bits: 8, name: 'fp8', levels: 40, gb: 70 },
-    { bits: 4, name: 'int4', levels: 16, gb: 35 },
-  ];
-  const qz = (w, L) => { if (!L) return w; const step = 6 / (L - 1); return Math.round((clamp(w, -3, 3) + 3) / step) * step - 3; };
-
-  const quantStage = si => (lp, t) => {
-    const cur = QS[si], prev = QS[Math.max(0, si - 1)];
-    const m = si === 0 ? 1 : ease(lp * 2.4);
-    const pad = cw < 500 ? 16 : 28;
-    // header: big bit count + memory bar
-    const big = clamp(cw * 0.09, 40, 84);
-    font(big, SERIF, 'italic'); ctx.textBaseline = 'alphabetic'; ctx.fillStyle = C.fg;
-    const label = `${cur.bits} bits`;
-    ctx.fillText(label, pad, pad + big * 0.8);
-    const lw = ctx.measureText(label).width;
-    font(11); ctx.fillStyle = C.lime; ctx.fillText(cur.name, pad + lw + 12, pad + big * 0.8);
-    const gb = prev.gb + (cur.gb - prev.gb) * m;
-    const barY = pad + big + 18, barW = cw - pad * 2, scaleGB = barW / 160;
-    ctx.fillStyle = C.faint; ctx.fillRect(pad, barY, barW, 12);
-    ctx.fillStyle = gb <= 80 ? C.lime : coral(.9); ctx.fillRect(pad, barY, gb * scaleGB, 12);
-    const gx = pad + 80 * scaleGB;
-    ctx.strokeStyle = C.fg; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(gx, barY - 6); ctx.lineTo(gx, barY + 18); ctx.stroke(); ctx.setLineDash([]);
-    font(10); ctx.textBaseline = 'middle';
-    ctx.fillStyle = C.mute; ctx.fillText('80 GB · one GPU', gx + 6, barY + 26);
-    ctx.fillStyle = gb <= 80 ? C.lime : coral(1); ctx.fillText(`${Math.round(gb)} GB · 70B params`, pad, barY + 26);
-    // weight matrix
-    const histH = Math.max(60, ch * 0.18);
-    const top = barY + 70, bottom = ch - histH - 44;
-    const cell = Math.min((cw - pad * 2) / QC, (bottom - top) / QR);
-    const mx = (cw - cell * QC) / 2;
-    for (let r = 0; r < QR; r++) for (let c = 0; c < QC; c++) {
-      const w = QW[r * QC + c];
-      const v = qz(w, prev.levels) + (qz(w, cur.levels) - qz(w, prev.levels)) * m;
-      const a = Math.min(1, Math.abs(v) / 2.2) * 0.92 + 0.04;
-      ctx.fillStyle = v >= 0 ? lime(a) : cyan(a);
-      ctx.fillRect(mx + c * cell + 1, top + r * cell + 1, cell - 2, cell - 2);
+  function moeBars(L, loads, { cap = false } = {}) {
+    const unit = L.barW / 8;
+    L.exp.forEach((b, e) => {
+      const v = loads[e], y = b.y - 6;
+      ctx.fillStyle = C.faint; ctx.fillRect(L.barX, y, L.barW, 12);
+      const ok = cap ? Math.min(v, CAP) : v;
+      ctx.fillStyle = lime(0.85); ctx.fillRect(L.barX, y, ok * unit, 12);
+      if (cap && v > CAP) { ctx.fillStyle = coral(0.9); ctx.fillRect(L.barX + CAP * unit, y, (v - CAP) * unit, 12); }
+      font(10); ctx.textBaseline = 'middle'; ctx.fillStyle = v < 0.5 ? C.dim : C.mute;
+      ctx.fillText(v < 0.5 ? 'idle' : `${Math.round(v)}`, L.barX + Math.max(v, 0) * unit + 6, b.y);
+    });
+    if (cap) {
+      const x = L.barX + CAP * unit;
+      ctx.strokeStyle = 'rgba(236,235,230,.55)'; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(x, L.top - 6); ctx.lineTo(x, L.top + L.area + 4); ctx.stroke(); ctx.setLineDash([]);
+      font(10); ctx.fillStyle = C.fg; ctx.fillText('capacity', x + 4, L.top - 12);
     }
-    font(10); ctx.fillStyle = C.dim; ctx.textBaseline = 'alphabetic';
-    ctx.fillText(`W[${QR}×${QC}] · lime > 0 > cyan`, mx, top - 8);
-    // histogram + quantization levels
-    const hy = ch - 30, hx = pad, hw = cw - pad * 2, bw = hw / HIST.length, maxH = Math.max(...HIST);
-    HIST.forEach((n, i) => { ctx.fillStyle = '#34343a'; const h = (n / maxH) * histH; ctx.fillRect(hx + i * bw + 0.5, hy - h, bw - 1, h); });
-    const lines = (L, alpha) => {
-      if (!L || alpha <= 0) return;
-      ctx.strokeStyle = lime(alpha * (L > 20 ? 0.35 : 0.85));
-      for (let i = 0; i < L; i++) { const x = hx + (i / (L - 1)) * hw; ctx.beginPath(); ctx.moveTo(x, hy - histH - 6); ctx.lineTo(x, hy + 4); ctx.stroke(); }
-    };
-    lines(prev.levels, si === 0 ? 0 : 1 - m); lines(cur.levels, m);
-    font(10); ctx.fillStyle = C.mute;
-    ctx.fillText(cur.levels ? `weight distribution · ${cur.name === 'fp8' ? 'coarser grid' : '16 levels'}` : 'weight distribution · ~continuous', hx, hy + 18);
-  };
+  }
+  function sMoeRoute(lp) {
+    const L = moeLayout(), n = Math.min(8, Math.ceil(clamp(lp * 1.4) * 8));
+    const act = BAL.map(() => 0); ROUTE.slice(0, n).forEach(([a, b]) => { act[a] = 1; act[b] = 1; });
+    moeRoutes(L, n);
+    moeBase(L, { activeAlpha: act.map(v => v * 0.3) });
+    moeTokens(L, n);
+    const rx = (L.pad + 90 + L.exp[0].x) / 2;
+    ctx.strokeStyle = C.dim; ctx.setLineDash([3, 5]); ctx.beginPath(); ctx.moveTo(rx, L.top - 10); ctx.lineTo(rx, L.top + L.area + 6); ctx.stroke(); ctx.setLineDash([]);
+    font(11); ctx.fillStyle = C.mute; ctx.textAlign = 'center'; ctx.fillText('router · top-2', rx, L.top - 18); ctx.textAlign = 'left';
+    font(11); ctx.fillStyle = C.mute; ctx.fillText('lime = first choice · cyan = second · width = router weight', L.pad, ch - 22);
+  }
+  function sMoeCompute(lp) {
+    const L = moeLayout(), e = ease(lp * 1.8);
+    moeRoutes(L, 8, 0.25);
+    moeBase(L, { activeAlpha: SKEW.map(v => (v / 7) * e) });
+    moeTokens(L, 8);
+    moeBars(L, SKEW.map(v => v * e));
+    font(11); ctx.fillStyle = C.lime;
+    ctx.fillText('16 expert calls for 8 tokens · each token uses 2 of 8 experts (~25% of their weights)', L.pad, ch - 22);
+  }
+  function sMoeBalance(lp) {
+    const L = moeLayout(), k = ease(lp * 1.7 - 0.45);
+    const loads = SKEW.map((v, i) => v + (BAL[i] - v) * k);
+    moeBase(L, { activeAlpha: loads.map(v => Math.min(1, v / 4)) });
+    moeTokens(L, 8);
+    moeBars(L, loads, { cap: true });
+    font(11);
+    ctx.fillStyle = k < 0.5 ? coral(1) : C.lime;
+    ctx.fillText(k < 0.5 ? 'unbalanced: expert 0 overflows its capacity while three experts sit idle'
+      : 'with a load-balancing loss in training: every expert gets ~2 tokens', L.pad, ch - 22);
+  }
 
   /* =====================================================================
-     mounting: each section pins, tracks scroll progress, and draws
+     latency vs. throughput (interactive, idealized)
+     ===================================================================== */
+  const RF = { P: 8e9, W: 16e9, KV: 131072, BW: 3.35e12, F: 700e12, HBM: 80e9 };
+  const EXP = { logb: 5, ctx: 4096, auto: false };
+  const model = (b, ctx) => {
+    const bytes = RF.W + b * ctx * RF.KV, mem = bytes / RF.BW, comp = (2 * RF.P * b) / RF.F, step = Math.max(mem, comp);
+    return { step, mem, comp, thr: b / step, fits: bytes <= RF.HBM, gb: bytes / 1e9 };
+  };
+  function sRoofline(lp, t) {
+    const logb = EXP.auto ? 4.5 + 4.5 * Math.sin(t * 0.45) : EXP.logb;
+    const b = Math.max(1, Math.round(2 ** logb)), cx = EXP.ctx;
+    const narrow = cw < 600, L = 56, R = 48, T = narrow ? 118 : 100, B = 62, pw = cw - L - R, ph = ch - T - B;
+    const X = lb => L + (lb / 9) * pw;
+    const pts = []; for (let lb = 0; lb <= 9.0001; lb += 0.05) pts.push([lb, model(2 ** lb, cx)]);
+    const tMax = Math.max(...pts.filter(([, m]) => m.fits).map(([, m]) => m.thr), 1) * 1.1;
+    const lMax = Math.max(...pts.map(([, m]) => m.step)) * 1e3 * 1.05;
+    const Y = v => T + ph - (v / tMax) * ph, Y2 = v => T + ph - (v / lMax) * ph;
+    // regions: compute-bound shading and out-of-memory hatching
+    pts.forEach(([lb, m], i) => {
+      if (i === 0) return;
+      const x0 = X(pts[i - 1][0]), x1 = X(lb);
+      if (!m.fits) { ctx.fillStyle = coral(0.07); ctx.fillRect(x0, T, x1 - x0 + 0.5, ph); }
+      else if (m.comp > m.mem) { ctx.fillStyle = cyan(0.06); ctx.fillRect(x0, T, x1 - x0 + 0.5, ph); }
+    });
+    // axes
+    ctx.strokeStyle = C.dim; ctx.beginPath(); ctx.moveTo(L, T); ctx.lineTo(L, T + ph); ctx.lineTo(L + pw, T + ph); ctx.lineTo(L + pw, T); ctx.stroke();
+    font(10); ctx.textBaseline = 'middle'; ctx.fillStyle = C.mute; ctx.textAlign = 'center';
+    for (let lb = 0; lb <= 9; lb++) ctx.fillText(String(2 ** lb), X(lb), T + ph + 14);
+    ctx.fillText('batch size (concurrent requests)', L + pw / 2, T + ph + 34);
+    ctx.textAlign = 'left'; ctx.fillStyle = C.lime; ctx.fillText('↑ total tok/s', L, T - 12); ctx.textAlign = 'right';
+    for (let k = 0; k <= 4; k++) ctx.fillText(Math.round((tMax * k) / 4 / 1000) + 'k', L - 8, Y((tMax * k) / 4));
+    ctx.textAlign = 'right'; ctx.fillStyle = C.cyan; ctx.fillText('ms per token ↑', L + pw, T - 12); ctx.textAlign = 'left';
+    for (let k = 0; k <= 4; k++) ctx.fillText(Math.round((lMax * k) / 4), L + pw + 8, Y2((lMax * k) / 4));
+    // curves
+    const curve = (val, ys, col, oom = true) => {
+      ctx.lineWidth = 2;
+      for (let i = 1; i < pts.length; i++) {
+        const [la, ma] = pts[i - 1], [lb2, mb] = pts[i];
+        if (!oom && !mb.fits) continue;
+        ctx.strokeStyle = mb.fits ? col : coral(0.6); ctx.setLineDash(mb.fits ? [] : [4, 4]);
+        ctx.beginPath(); ctx.moveTo(X(la), ys(val(ma))); ctx.lineTo(X(lb2), ys(val(mb))); ctx.stroke();
+      }
+      ctx.setLineDash([]); ctx.lineWidth = 1;
+    };
+    curve(m => Math.min(m.thr, tMax), Y, C.lime, false);
+    curve(m => m.step * 1e3, Y2, C.cyan);
+    // marker
+    const m = model(b, cx), mx = X(Math.log2(b));
+    ctx.strokeStyle = 'rgba(236,235,230,.4)'; ctx.setLineDash([2, 4]); ctx.beginPath(); ctx.moveTo(mx, T); ctx.lineTo(mx, T + ph); ctx.stroke(); ctx.setLineDash([]);
+    [...(m.fits ? [[Y(Math.min(m.thr, tMax)), C.lime]] : []), [Y2(m.step * 1e3), C.cyan]].forEach(([y, c]) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(mx, y, 5, 0, 7); ctx.fill(); });
+    // readout
+    const bound = !m.fits ? 'out of memory' : m.comp > m.mem ? 'compute-bound' : 'memory-bound';
+    font(clamp(cw * 0.022, 12, 16)); ctx.textBaseline = 'alphabetic'; ctx.fillStyle = C.fg;
+    ctx.fillText(`batch ${b} · context ${cx.toLocaleString()}`, L, 34);
+    font(clamp(cw * 0.017, 10, 13));
+    ctx.fillStyle = !m.fits ? coral(1) : C.mute;
+    const a = `${(m.step * 1e3).toFixed(1)} ms/step · ${Math.round(1 / m.step)} tok/s per user`, z2 = `${Math.round(m.thr).toLocaleString()} tok/s total · ${m.gb.toFixed(0)} GB · ${bound}`;
+    if (narrow) { ctx.fillText(a, L, 56); ctx.fillText(z2, L, 76); } else ctx.fillText(`${a} · ${z2}`, L, 58);
+    font(10); ctx.fillStyle = C.dim;
+    ctx.fillText(cw > 620 ? 'idealized · 8B model, fp16, one 80 GB GPU · cyan band = compute-bound · red = out of memory' : 'idealized · 8B, fp16, one 80 GB GPU', L, ch - 8);
+  }
+
+  /* =====================================================================
+     the anatomy section: pinned, scroll-driven
      ===================================================================== */
   function mount(sec, DRAW) {
     const cv = sec.querySelector('canvas'), my = cv.getContext('2d');
@@ -468,11 +448,43 @@
     addEventListener('resize', size);
     document.fonts.ready.then(size);
   }
-
   const SETS = {
     anatomy: [sRequest, sTokenize, sBatch, sPrefill, sDecode, sStream],
-    spec: [sDraft, sVerify, sCommit],
-    quant: [quantStage(0), quantStage(1), quantStage(2)],
+    moe: [sMoeRoute, sMoeCompute, sMoeBalance],
   };
   document.querySelectorAll('[data-story]').forEach(sec => mount(sec, SETS[sec.dataset.story]));
+
+  /* =====================================================================
+     the explorer section: sliders drive the chart directly
+     ===================================================================== */
+  (() => {
+    const sec = document.getElementById('explore');
+    if (!sec) return;
+    const cv = sec.querySelector('canvas'), my = cv.getContext('2d');
+    const bIn = document.getElementById('ex-logb'), cIn = document.getElementById('ex-ctx');
+    let w = 0, h = 0, visible = false, raf = 0, touched = false;
+    const size = () => {
+      const d = Math.min(devicePixelRatio || 1, 2), r = cv.getBoundingClientRect();
+      w = r.width; h = r.height; cv.width = w * d; cv.height = h * d; my.setTransform(d, 0, 0, d, 0, 0);
+    };
+    const sync = () => {
+      EXP.logb = +bIn.value; EXP.ctx = 2 ** +cIn.value;
+      document.getElementById('ex-b').textContent = Math.max(1, Math.round(2 ** EXP.logb));
+      document.getElementById('ex-c').textContent = EXP.ctx.toLocaleString() + ' tokens';
+    };
+    sec.addEventListener('input', () => { if (!touched) { touched = true; bump(9); } sync(); });
+    sync();
+    function frame(ms) {
+      ctx = my; cw = w; ch = h;
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.save(); ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1;
+      sRoofline(1, ms / 1000);
+      ctx.restore();
+      raf = visible ? requestAnimationFrame(frame) : 0;
+    }
+    new IntersectionObserver(([e]) => { visible = e.isIntersecting; if (visible) { size(); if (!raf) raf = requestAnimationFrame(frame); } }).observe(sec);
+    addEventListener('resize', size);
+    document.fonts.ready.then(size);
+  })();
 })();
+
