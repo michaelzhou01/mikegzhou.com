@@ -17,13 +17,10 @@
   const box = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
 
   /* ---------- data ---------- */
-  // the request flowing through the anatomy diagram; replaced live when a visitor asks their own question
-  let PROMPT = 'why is the sky blue?';
-  let TOK = [['why', 17418], [' is', 374], [' the', 279], [' sky', 13180], [' blue', 6437], ['?', 30]];
-  let OUT = [' Sunlight', ' scatters', ' off', ' air', ' molecules', ',', ' and', ' blue', ' light', ' scatters', ' the', ' most', '.'];
-  let REAL = null;      // { ttft, tps, device, done } once a real model is producing OUT
-  let PENDING = false;  // a visitor prompt with no model loaded: nothing to decode yet
-  const SYS = 12, MAXP = 10;
+  const PROMPT = 'why is the sky blue?';
+  const TOK = [['why', 17418], [' is', 374], [' the', 279], [' sky', 13180], [' blue', 6437], ['?', 30]];
+  const OUT = [' Sunlight', ' scatters', ' off', ' air', ' molecules', ',', ' and', ' blue', ' light', ' scatters', ' the', ' most', '.'];
+  const SYS = 12;
 
   // continuous batching: a deterministic simulation, our request joins at column ~130
   const SL = 8, hist = [];
@@ -45,29 +42,14 @@
   })();
 
   // attention weights for prefill
-  let NP, ATT;
-  const rebuildAtt = () => {
-    NP = SYS + Math.min(TOK.length, MAXP);
-    const r = rng(7 + TOK.length);
-    ATT = Array.from({ length: NP }, (_, i) => Array.from({ length: NP }, (_, j) => clamp(r() ** 2.4 * 0.75 + (i === j ? 0.45 : 0) + (j === 0 ? 0.35 : 0))));
-  };
-  rebuildAtt();
-  window.MZ.setRequest = ({ prompt, toks, out, real, pending } = {}) => {
-    if (prompt !== undefined) PROMPT = prompt;
-    if (toks) { TOK = toks; rebuildAtt(); }
-    if (out) OUT = out;
-    if (real !== undefined) REAL = real;
-    if (pending !== undefined) PENDING = pending;
-  };
+  const NP = SYS + TOK.length;
+  const ATT = (() => { const r = rng(7); return Array.from({ length: NP }, (_, i) => Array.from({ length: NP }, (_, j) => clamp(r() ** 2.4 * 0.75 + (i === j ? 0.45 : 0) + (j === 0 ? 0.35 : 0)))); })();
 
   /* ---------- stage 0: request ---------- */
   function sRequest(lp, t) {
-    let fs = clamp(cw * 0.045, 15, 30), disp = PROMPT;
+    const fs = clamp(cw * 0.045, 15, 30);
     font(fs);
-    while (ctx.measureText(disp).width > cw * 0.76 && fs > 13) font(--fs);
-    while (ctx.measureText(disp + '…').width > cw * 0.76 && disp.length > 4) disp = disp.slice(0, -1);
-    if (disp !== PROMPT) disp += '…';
-    const full = ctx.measureText(disp).width;
+    const full = ctx.measureText(PROMPT).width;
     const bw = full + fs * 2.2, bh = fs * 2.8, x = (cw - bw) / 2, y = ch / 2 - bh / 2;
     // incoming packet
     const e = ease(lp * 2.2);
@@ -81,31 +63,30 @@
     font(11); ctx.fillStyle = C.mute; ctx.textBaseline = 'alphabetic';
     ctx.fillText('POST /v1/chat/completions', x, y - 14);
     ctx.fillText('{ "role": "user" }', x, y + bh + 24);
-    const n = Math.round(clamp((lp - 0.25) * 1.9) * disp.length);
+    const n = Math.round(clamp((lp - 0.25) * 1.9) * PROMPT.length);
     font(fs); ctx.textBaseline = 'middle'; ctx.fillStyle = C.fg;
-    const typed = disp.slice(0, n);
+    const typed = PROMPT.slice(0, n);
     ctx.fillText(typed, x + fs * 1.1, ch / 2);
     if (Math.floor(t * 2) % 2 === 0) { ctx.fillStyle = C.lime; ctx.fillRect(x + fs * 1.1 + ctx.measureText(typed).width + 2, ch / 2 - fs * 0.55, fs * 0.55, fs * 1.1); }
   }
 
   /* ---------- stage 1: tokenize ---------- */
   function sTokenize(lp) {
-    const TV = TOK.length > 8 ? [...TOK.slice(0, 7), [` +${TOK.length - 7}`, '…']] : TOK;
     let fs = clamp(cw * 0.045, 14, 30), pad, gap, widths, spreadW;
     const measure = () => {
       font(fs); pad = fs * 0.6; gap = fs * 0.5;
-      widths = TV.map(([s]) => ctx.measureText(s.trim()).width);
-      spreadW = widths.reduce((s, w) => s + w + pad * 2, 0) + gap * (TV.length - 1);
+      widths = TOK.map(([s]) => ctx.measureText(s.trim()).width);
+      spreadW = widths.reduce((s, w) => s + w + pad * 2, 0) + gap * (TOK.length - 1);
     };
     measure();
     if (spreadW > cw * 0.9) { fs *= (cw * 0.9) / spreadW; measure(); }
-    const contig = TV.map(([s]) => ctx.measureText(s).width);
+    const contig = TOK.map(([s]) => ctx.measureText(s).width);
     const contigW = contig.reduce((a, b) => a + b, 0);
     const e = ease(lp * 2);
     let cx = (cw - contigW) / 2, sx = (cw - spreadW) / 2;
     const y = ch / 2 - fs * 0.6;
     ctx.textBaseline = 'middle';
-    TV.forEach(([s, id], i) => {
+    TOK.forEach(([s, id], i) => {
       const lead = s.startsWith(' ') ? ctx.measureText(' ').width : 0;
       const xc = cx + lead, xs = sx + pad;
       const x = xc + (xs - xc) * e;
@@ -192,11 +173,10 @@
 
   /* ---------- stage 4: decode ---------- */
   function sDecode(lp, t) {
-    const g = REAL ? OUT.length : Math.min(OUT.length, Math.floor(lp * (OUT.length + 2)));
+    const g = Math.min(OUT.length, Math.floor(lp * (OUT.length + 2)));
     const fs = clamp(cw * 0.026, 11, 16), padX = fs * 0.5, lineH = fs * 2.4, margin = 24;
     font(fs); ctx.textBaseline = 'middle';
-    const list = [...TOK.slice(-12).map(([s]) => ({ s: s.trim() || '␣', p: true })), ...OUT.slice(0, g).slice(-28).map(s => ({ s: s.trim() || '␣', p: false }))];
-    if (PENDING && !OUT.length) for (let k = 0; k < 6; k++) list.push({ s: '▢', p: true, ghost: true });
+    const list = [...TOK.map(([s]) => ({ s: s.trim(), p: true })), ...OUT.slice(0, g).map(s => ({ s: s.trim(), p: false }))];
     let x = margin, y = Math.max(96, ch * 0.2);
     const pos = list.map(it => {
       const w = ctx.measureText(it.s).width + padX * 2;
@@ -204,7 +184,7 @@
       const r = [x, y, w]; x += w + 6; return r;
     });
     // attention arcs from the newest token
-    if (g > 0 && pos.length > 1) {
+    if (g > 0) {
       const r = rng(100 + g), last = pos.length - 1, [nx, ny, nw] = pos[last];
       const picks = new Set(); while (picks.size < Math.min(4, last)) picks.add((r() * last) | 0);
       [...picks].forEach((k, i) => {
@@ -218,7 +198,6 @@
     list.forEach((it, i) => {
       const [bx, by, w] = pos[i], newest = !it.p && i === list.length - 1;
       box(bx, by - fs * 0.95, w, fs * 1.9, 6);
-      if (it.ghost) { ctx.setLineDash([3, 3]); ctx.strokeStyle = C.dim; ctx.stroke(); ctx.setLineDash([]); ctx.fillStyle = C.dim; ctx.fillText(it.s, bx + padX, by); return; }
       if (newest) { ctx.fillStyle = C.lime; ctx.fill(); }
       else { ctx.strokeStyle = it.p ? C.dim : lime(.45); ctx.stroke(); }
       ctx.fillStyle = newest ? '#0a0a0b' : it.p ? C.mute : C.fg;
@@ -244,29 +223,18 @@
       }
     }
     font(11); ctx.fillStyle = C.mute;
-    ctx.fillText(`kv cache · ${total} slots · ${Math.ceil(total / PAGE)} pages${total > PAGE * PAGES ? ` (showing ${PAGES})` : ''}`, margin, ch - 22);
-    if (PENDING && !OUT.length) { ctx.fillStyle = C.mute; ctx.textAlign = 'center'; ctx.fillText('no model loaded · tick "run a real model" to decode', cw / 2, baseY - 46); ctx.textAlign = 'left'; }
+    ctx.fillText(`kv cache · ${total}/${PAGE * PAGES} slots · ${Math.ceil(total / PAGE)} pages`, margin, ch - 22);
   }
 
   /* ---------- stage 5: stream ---------- */
+  const ANSWER = OUT.join('').trim();
   function sStream(lp, t) {
-    const ANSWER = OUT.join('').trim().replace(/\s+/g, ' ');
-    if (PENDING && !ANSWER) {
-      font(clamp(cw * 0.05, 24, 44), SERIF, 'italic'); ctx.fillStyle = C.dim; ctx.textAlign = 'center';
-      ctx.fillText('nothing to stream yet.', cw / 2, ch / 2 - 10);
-      font(12); ctx.fillStyle = C.mute; ctx.fillText('this prototype has no server model; tick "run a real model" to generate in your browser', cw / 2, ch / 2 + 30);
-      ctx.textAlign = 'left'; return;
-    }
-    const n = REAL ? ANSWER.length : Math.floor(clamp(lp * 1.35) * ANSWER.length);
-    let fs = clamp(cw * 0.072, 30, 68), lh, lines, maxW = cw * 0.82;
-    for (;;) {
-      lh = fs * 1.08; font(fs, SERIF, 'italic');
-      lines = []; let cur = '';
-      ANSWER.split(' ').forEach(wd => { const tr = cur ? cur + ' ' + wd : wd; if (ctx.measureText(tr).width > maxW && cur) { lines.push(cur); cur = wd; } else cur = tr; });
-      lines.push(cur);
-      if (lines.length * lh < ch * 0.66 || fs <= 16) break;
-      fs -= 2;
-    }
+    const n = Math.floor(clamp(lp * 1.35) * ANSWER.length);
+    const fs = clamp(cw * 0.072, 30, 68), lh = fs * 1.08, maxW = cw * 0.82;
+    font(fs, SERIF, 'italic');
+    const lines = []; let cur = '';
+    ANSWER.split(' ').forEach(wd => { const tr = cur ? cur + ' ' + wd : wd; if (ctx.measureText(tr).width > maxW && cur) { lines.push(cur); cur = wd; } else cur = tr; });
+    lines.push(cur);
     const x0 = (cw - maxW) / 2; let y = ch / 2 - (lines.length * lh) / 2 + lh / 2 - 14;
     ctx.textBaseline = 'middle';
     let left = n, cx = x0, cy = y;
@@ -279,15 +247,9 @@
     if (n === 0) { cx = x0; cy = ch / 2 - (lines.length * lh) / 2 + lh / 2 - 14; }
     if (Math.floor(t * 2) % 2 === 0 || n < ANSWER.length) { ctx.fillStyle = C.lime; ctx.fillRect(cx + 4, cy - fs * 0.38, fs * 0.32, fs * 0.76); }
     let acc = 0, shown = 0; for (const s of OUT) { acc += s.length; if (acc - 1 <= n) shown++; }
-    font(12);
-    if (REAL) {
-      ctx.fillStyle = C.lime;
-      ctx.fillText(`ttft ${REAL.ttft}ms  ·  ${REAL.tps} tok/s  ·  ${REAL.tokens ?? OUT.length} tokens  ·  ${REAL.device}, measured live${REAL.done ? '  ·  [done]' : '  ·  generating…'}`, x0, y + 18);
-    } else {
-      ctx.fillStyle = C.mute;
-      const tps = shown > 1 ? 94 : 0;
-      ctx.fillText(`ttft 184ms  ·  ${tps || '—'} tok/s  ·  ${Math.min(shown, OUT.length)}/${OUT.length} tokens  ·  illustrative${n >= ANSWER.length ? '  ·  [done]' : ''}`, x0, y + 18);
-    }
+    font(12); ctx.fillStyle = C.mute;
+    const tps = shown > 1 ? 94 : 0;
+    ctx.fillText(`ttft 184ms  ·  ${tps || '—'} tok/s  ·  ${Math.min(shown, OUT.length)}/${OUT.length} tokens${n >= ANSWER.length ? '  ·  [done]' : ''}`, x0, y + 18);
   }
 
   /* =====================================================================

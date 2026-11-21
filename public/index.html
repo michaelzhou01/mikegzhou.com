@@ -83,12 +83,6 @@
           <article class="stage"><span class="num mono">04 / decode</span><h2>Then one token at a time.</h2><p>Each new token attends to everything before it. The cache grows a page at a time.</p></article>
           <article class="stage"><span class="num mono">05 / stream</span><h2>Back to you.</h2><p>Tokens stream out as they're made: a fast first token, then a steady rhythm.</p></article>
         </div>
-        <form class="ask" id="ask" autocomplete="off">
-          <input id="ask-input" maxlength="200" placeholder="ask your own question…" aria-label="Your question">
-          <button type="submit" class="mono">send ↵</button>
-        </form>
-        <label class="ask-real mono"><input type="checkbox" id="ask-real"> run a real model in your browser <span>smollm2-135m · ~118 MB · webgpu</span></label>
-        <p class="ask-status mono" id="ask-status" aria-live="polite"></p>
       </div>
       <div class="story-vis">
         <canvas class="story-canvas" aria-label="Diagram of a request moving through an inference server."></canvas>
@@ -155,7 +149,6 @@
 
   <script src="/main.js"></script>
   <script src="/story.js"></script>
-  <script src="/ask.js"></script>
   <script src="/extras.js"></script>
 </body>
 </html>

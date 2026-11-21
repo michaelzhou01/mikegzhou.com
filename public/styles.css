@@ -157,21 +157,6 @@ html.has-cursor .cursor { display: block; position: fixed; left: 0; top: 0; z-in
 .hud-btn:hover, .hud-btn[aria-pressed="true"] { color: var(--accent); }
 .hud-k { border: 1px solid var(--dim); border-radius: 4px; width: 20px; height: 20px; line-height: 18px; text-align: center; }
 
-/* ---------- prototype: ask your own question ---------- */
-.ask { display: flex; gap: 8px; margin-top: 28px; max-width: 460px; }
-.ask input {
-  flex: 1; min-width: 0; font: 14px var(--mono); color: var(--fg); background: #111114;
-  border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; outline: none; transition: border-color .2s;
-}
-.ask input:focus { border-color: var(--accent); }
-.ask button { color: var(--bg); background: var(--accent); border: 0; border-radius: 8px; padding: 0 14px; cursor: pointer; }
-.ask.busy button { opacity: .5; }
-.ask-real { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--muted); margin-top: 12px; cursor: pointer; }
-.ask-real input { accent-color: var(--accent); margin: 0; }
-.ask-real span { color: var(--dim); }
-.ask-status { color: var(--muted); min-height: 1.6em; margin: 8px 0 0; }
-.ask-status .err { color: #ff7a5c; }
-
 /* ---------- prototype: command palette ---------- */
 .palette { position: fixed; inset: 0; z-index: 120; background: rgba(5,5,6,.6); backdrop-filter: blur(6px); display: grid; place-items: start center; padding-top: 18vh; }
 .palette[hidden] { display: none; }
@@ -185,6 +170,4 @@ html.has-cursor .cursor { display: block; position: fixed; left: 0; top: 0; z-in
 
 @media (max-width: 860px) {
   .hud-btn#sound { display: none; }
-  .ask { margin-top: 14px; }
-  .ask-real span { display: none; }
 }

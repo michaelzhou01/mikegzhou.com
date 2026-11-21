@@ -39,7 +39,6 @@
     ['go to anatomy of a request', go('anatomy')],
     ['go to speculative decoding', go('spec')],
     ['go to quantization', go('quant')],
-    ['ask your own question', () => MZ.focusAsk?.()],
     ['pulse the latent space', () => { document.getElementById('top').scrollIntoView({ behavior: 'smooth' }); setTimeout(() => MZ.pulse?.(), 500); }],
     [() => (on ? 'turn sound off' : 'turn sound on'), () => setSound(!on)],
     ['open github ↗', () => window.open('https://github.com/michaelzhou01', '_blank', 'noopener')],
