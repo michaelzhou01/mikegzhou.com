@@ -25,65 +25,84 @@
   <meta name="twitter:title" content="Mike Zhou">
   <meta name="twitter:description" content="Engineer working on inference infrastructure at Reflection in New York.">
   <meta name="twitter:image" content="https://mikegzhou.com/og.png">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <section class="hero">
-    <canvas id="field" aria-hidden="true"></canvas>
-    <div class="hud hud-tl mono">mikegzhou.com</div>
-    <div class="hud hud-tr mono" id="coords">q = (0, 0)</div>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="cursor" aria-hidden="true"><span class="cursor-ring"></span><span class="cursor-dot"></span></div>
 
+  <header class="hud mono">
+    <a href="#top" class="hud-brand"><span class="dot"></span>mike zhou</a>
+    <nav class="hud-nav">
+      <a href="#story">request</a>
+      <a href="#about">about</a>
+      <span class="hud-clock" id="clock">nyc --:--:--</span>
+    </nav>
+  </header>
+
+  <section class="hero" id="top">
+    <canvas id="gl" aria-hidden="true"></canvas>
+    <h1 class="hero-name">Mike Zhou</h1>
     <div class="hero-copy">
-      <p class="eyebrow mono"><span class="dot"></span> new york</p>
-      <h1 id="name" aria-label="Mike Zhou">Mike Zhou</h1>
-      <p class="stream mono" id="stream" aria-label="Engineer, inference infrastructure at Reflection."></p>
+      <p class="stream mono" id="stream" data-text="engineer · inference infrastructure @ reflection · new york"></p>
       <p class="metrics mono" id="metrics">&nbsp;</p>
     </div>
-
-    <div class="hud hud-bl mono dim">move to query · click to prefill</div>
-    <a class="hud hud-br mono scroll-cue" href="#about">↓</a>
+    <div class="hero-foot mono">
+      <span class="hint">move to attend · click to prefill</span>
+      <a href="#story" class="cue">scroll <span>↓</span></a>
+    </div>
   </section>
 
-  <main>
-    <section id="about" class="block">
-      <h2 class="label mono"><span>01</span> about</h2>
-      <p class="lede">
-        I'm an engineer working on <em>inference infrastructure</em> at
-        <a href="https://reflection.ai" target="_blank" rel="noopener">Reflection</a> in New York.
-      </p>
-      <p>
-        That's the part of the stack that takes a trained model and serves it: batching, KV caches,
-        GPU utilization, latency. More here eventually.
-      </p>
-    </section>
+  <div class="ticker" aria-hidden="true">
+    <div class="ticker-track">
+      <span>inference</span><i>✦</i><span>continuous batching</span><i>✦</i><span>kv cache</span><i>✦</i><span>paged attention</span><i>✦</i><span>prefill</span><i>✦</i><span>decode</span><i>✦</i><span>speculative decoding</span><i>✦</i><span>quantization</span><i>✦</i><span>tail latency</span><i>✦</i><span>tokens / second</span><i>✦</i>
+      <span>inference</span><i>✦</i><span>continuous batching</span><i>✦</i><span>kv cache</span><i>✦</i><span>paged attention</span><i>✦</i><span>prefill</span><i>✦</i><span>decode</span><i>✦</i><span>speculative decoding</span><i>✦</i><span>quantization</span><i>✦</i><span>tail latency</span><i>✦</i><span>tokens / second</span><i>✦</i>
+    </div>
+  </div>
 
-    <section class="block">
-      <h2 class="label mono"><span>02</span> roughly what that looks like</h2>
-      <figure class="batch">
-        <canvas id="batch" aria-label="Animation of continuous batching: requests of different lengths fill GPU slots as soon as they free up."></canvas>
-        <figcaption class="mono">
-          <span>continuous batching. each color is a request; bright cell = prefill.</span>
-          <span id="util">util —</span>
-        </figcaption>
-      </figure>
-    </section>
+  <section class="story" id="story" style="--n:6">
+    <div class="pin">
+      <div class="story-copy">
+        <p class="kicker mono"><span>01</span> anatomy of a request</p>
+        <ol class="rail mono">
+          <li>request</li><li>tokenize</li><li>batch</li><li>prefill</li><li>decode</li><li>stream</li>
+        </ol>
+        <div class="stages">
+          <article class="stage on"><span class="num mono">00 / request</span><h2>A prompt arrives.</h2><p>Somewhere, someone asks a model a question. The clock starts now.</p></article>
+          <article class="stage"><span class="num mono">01 / tokenize</span><h2>Text becomes integers.</h2><p>The prompt is split into tokens, and each token is an id in the model's vocabulary.</p></article>
+          <article class="stage"><span class="num mono">02 / batch</span><h2>Share the GPU.</h2><p>Many requests run side by side. When one finishes, the next takes its slot right away. That's continuous batching.</p></article>
+          <article class="stage"><span class="num mono">03 / prefill</span><h2>Read it all at once.</h2><p>The whole prompt goes through the model in one parallel pass, filling the KV cache as it goes.</p></article>
+          <article class="stage"><span class="num mono">04 / decode</span><h2>Then one token at a time.</h2><p>Each new token attends to everything before it. The cache grows a page at a time.</p></article>
+          <article class="stage"><span class="num mono">05 / stream</span><h2>Back to you.</h2><p>Tokens stream out as they're made: a fast first token, then a steady rhythm.</p></article>
+        </div>
+      </div>
+      <div class="story-vis">
+        <canvas id="story-canvas" aria-label="Diagram of a request moving through an inference server."></canvas>
+        <span class="vis-corner mono" id="vis-corner">p = 0.00</span>
+      </div>
+    </div>
+  </section>
 
-    <section class="block">
-      <h2 class="label mono"><span>03</span> elsewhere</h2>
-      <ul class="links mono">
-        <li><a href="https://github.com/michaelzhou01">github ↗</a></li>
-      </ul>
-    </section>
+  <section class="about" id="about">
+    <p class="kicker mono"><span>02</span> about</p>
+    <p class="lede" id="lede">I'm an engineer working on <em>inference infrastructure</em> at <a href="https://reflection.ai" target="_blank" rel="noopener">Reflection</a> in New York. That's the part of the stack that takes a trained model and makes it answer quickly, cheaply, and at scale.</p>
+    <p class="aside mono">more here eventually.</p>
+  </section>
 
-    <footer class="mono dim">
-      <span>© <span id="y"></span> mike zhou</span>
+  <footer class="foot">
+    <div class="foot-row mono">
+      <a href="https://github.com/michaelzhou01" target="_blank" rel="noopener">github ↗</a>
       <span><span id="tok">0</span> tokens generated on this page</span>
-    </footer>
-  </main>
+      <span>© <span id="y"></span></span>
+    </div>
+    <div class="foot-name" aria-hidden="true">Mike Zhou</div>
+  </footer>
 
   <script src="/main.js"></script>
+  <script src="/story.js"></script>
 </body>
 </html>
