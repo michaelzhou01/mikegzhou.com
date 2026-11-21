@@ -94,7 +94,7 @@
     attribute vec3 aP; attribute vec3 aS; attribute vec4 aM; attribute float aW; // aM: delay, size, phase, kind + 4*cat
     uniform float uTime; uniform vec2 uMouse; uniform float uForce; uniform vec3 uPulse;
     uniform float uDpr; uniform vec2 uRot; uniform vec3 uView; uniform vec2 uRes; uniform float uHot;
-    uniform float uWord; uniform vec3 uNb;
+    uniform float uWord; uniform vec3 uNb; uniform float uZoom;
     varying float vA; varying vec3 vCol;
     float ease(float x) { return x >= 1.0 ? 1.0 : 1.0 - pow(2.0, -9.0 * x); }
     void main() {
@@ -126,7 +126,7 @@
       vA = alpha * mix(0.25, 1.0, near) * smoothstep(0.0, 0.2, k) * (1.0 + glow * 0.7);
       vec2 c = s / uRes * 2.0 - 1.0;
       gl_Position = vec4(c.x, -c.y, 0.0, 1.0);
-      gl_PointSize = aM.y * uDpr * persp * (1.0 + glow * 0.8 + sel * 0.6);
+      gl_PointSize = aM.y * uDpr * persp * sqrt(uZoom) * (1.0 + glow * 0.8 + sel * 0.6);
     }`;
   const FS = `
     precision mediump float;
@@ -151,7 +151,7 @@
   root.classList.add('gl');
   gl.useProgram(prog);
   const U = {};
-  ['uTime', 'uMouse', 'uForce', 'uPulse', 'uDpr', 'uRot', 'uView', 'uRes', 'uHot', 'uWord', 'uNb'].forEach(n => U[n] = gl.getUniformLocation(prog, n));
+  ['uTime', 'uMouse', 'uForce', 'uPulse', 'uDpr', 'uRot', 'uView', 'uRes', 'uHot', 'uWord', 'uNb', 'uZoom'].forEach(n => U[n] = gl.getUniformLocation(prog, n));
   const A = ['aP', 'aS', 'aM', 'aW'].reduce((o, n) => (o[n] = gl.getAttribLocation(prog, n), o), {});
   const buf = gl.createBuffer();
   gl.clearColor(0.039, 0.039, 0.043, 1);
@@ -193,7 +193,10 @@
     bump(count >> 8);
   }
 
-  let W = 0, H = 0, view = [0, 0, 1];
+  let W = 0, H = 0, base = [0, 0, 1], view = [0, 0, 1];
+  // zoom state: z scales the cloud, (ox, oy) shifts its centre; eased toward the *T targets every frame
+  let z = 1, ox = 0, oy = 0, zT = 1, oxT = 0, oyT = 0;
+  const ZMIN = 0.6, ZMAX = 7;
   function size() {
     const dpr = Math.min(devicePixelRatio || 1, 2);
     W = hero.clientWidth; H = hero.clientHeight;
@@ -202,8 +205,7 @@
     lx.setTransform(dpr, 0, 0, dpr, 0, 0);
     gl.viewport(0, 0, cv.width, cv.height);
     gl.uniform2f(U.uRes, W, H); gl.uniform1f(U.uDpr, dpr);
-    view = W < 860 ? [W / 2, H * 0.38, Math.min(W * 0.4, H * 0.28)] : [W * 0.6, H * 0.48, Math.min(W * 0.26, H * 0.36)];
-    gl.uniform3f(U.uView, ...view);
+    base = W < 860 ? [W / 2, H * 0.38, Math.min(W * 0.4, H * 0.28)] : [W * 0.6, H * 0.48, Math.min(W * 0.26, H * 0.36)];
   }
 
   const t0 = performance.now();
@@ -212,9 +214,64 @@
   let force = 0, speed = 0, pulse = [-9999, -9999, -99];
   let rotX = 0.6, rotY = 0.32, vx = 0, vy = 0, drag = null, moved = 0;
   const local = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
-  cv.addEventListener('pointerdown', e => { drag = local(e); moved = 0; cv.setPointerCapture(e.pointerId); });
+  // zoom by factor k while keeping the screen point (px, py) fixed under the fingers/cursor
+  const zoomAt = (k, px, py) => {
+    const nz = Math.max(ZMIN, Math.min(ZMAX, zT * k)); k = nz / zT;
+    const cx = base[0] + oxT, cy = base[1] + oyT;
+    oxT = px - (px - cx) * k - base[0]; oyT = py - (py - cy) * k - base[1];
+    zT = nz;
+    if (zT <= 1.001) { oxT *= 0.5; oyT *= 0.5; } // drift back to centre when zoomed out
+    oxT = Math.max(-W, Math.min(W, oxT)); oyT = Math.max(-H, Math.min(H, oyT));
+  };
+  const resetZoom = () => { zT = 1; oxT = oyT = 0; };
+  window.MZ.resetZoom = resetZoom;
+
+  // Mac trackpad pinch arrives as wheel events with ctrlKey set (Chrome, Firefox, Edge)
+  cv.addEventListener('wheel', e => {
+    if (!e.ctrlKey) return; // plain two-finger scroll still scrolls the page
+    e.preventDefault();
+    const [x, y] = local(e);
+    zoomAt(Math.exp(-e.deltaY * 0.012), x, y);
+  }, { passive: false });
+  // Safari reports trackpad pinch as gesture events instead
+  let gScale = 1;
+  cv.addEventListener('gesturestart', e => { e.preventDefault(); gScale = 1; });
+  cv.addEventListener('gesturechange', e => { e.preventDefault(); const [x, y] = local(e); zoomAt(e.scale / gScale, x, y); gScale = e.scale; });
+  cv.addEventListener('gestureend', e => e.preventDefault());
+  cv.addEventListener('dblclick', resetZoom);
+
+  // touch: two fingers pinch (and pan), one finger rotates
+  const touches = new Map();
+  let pinch = null, lastTap = 0;
+  const pinchState = () => {
+    const [a, b] = [...touches.values()];
+    return { d: Math.hypot(a[0] - b[0], a[1] - b[1]), mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2 };
+  };
+  cv.addEventListener('pointerdown', e => {
+    const p = local(e);
+    if (e.pointerType === 'touch') {
+      touches.set(e.pointerId, p);
+      if (touches.size === 2) { pinch = pinchState(); drag = null; return; }
+      const t = performance.now();
+      if (t - lastTap < 300) resetZoom();
+      lastTap = t;
+    }
+    drag = p; moved = 0; cv.setPointerCapture(e.pointerId);
+  });
+  const endTouch = e => { touches.delete(e.pointerId); if (touches.size < 2) pinch = null; };
+  cv.addEventListener('pointercancel', endTouch);
   cv.addEventListener('pointermove', e => {
     const [x, y] = local(e);
+    if (e.pointerType === 'touch' && touches.has(e.pointerId)) {
+      touches.set(e.pointerId, [x, y]);
+      if (pinch && touches.size === 2) {
+        const nowP = pinchState();
+        zoomAt(nowP.d / pinch.d, nowP.mx, nowP.my);
+        oxT += nowP.mx - pinch.mx; oyT += nowP.my - pinch.my; // two-finger pan
+        pinch = nowP; moved = 99;
+        return;
+      }
+    }
     if (mouse.x > -9000) speed = Math.min(80, Math.hypot(x - mouse.x, y - mouse.y));
     if (drag) {
       const dx = x - drag[0], dy = y - drag[1];
@@ -225,7 +282,8 @@
   });
   const firePulse = (x, y) => { pulse = [x, y, now()]; bump(64 + ((Math.random() * 400) | 0)); window.MZ.onPulse?.(); };
   cv.addEventListener('pointerup', e => {
-    if (drag && moved < 6) { const [x, y] = local(e); firePulse(x, y); }
+    if (drag && moved < 6 && !pinch) { const [x, y] = local(e); firePulse(x, y); }
+    endTouch(e);
     drag = null;
   });
   cv.addEventListener('pointerleave', () => { mouse.x = mouse.y = -9999; });
@@ -254,6 +312,8 @@
     rotY = Math.max(-1.2, Math.min(1.2, rotY - vy));
     if (drag) { vx *= 0.5; vy *= 0.5; }
     if (DATA && t - hotAt > 3) { hot = (hot + 1 + ((Math.random() * 3) | 0)) % DATA.cats.length; hotAt = t; hotEl.textContent = `cluster: ${DATA.cats[hot]}`; bump(3); }
+    z += (zT - z) * 0.2; ox += (oxT - ox) * 0.2; oy += (oyT - oy) * 0.2;
+    view = [base[0] + ox, base[1] + oy, base[2] * z];
     const target = mouse.x > -9000 && !drag ? 0.35 + Math.min(0.4, speed * 0.015) : 0;
     force += (target - force) * 0.08; speed *= 0.9;
 
@@ -276,6 +336,17 @@
         nb.forEach(j => { const [nx, ny] = P[j]; lx.beginPath(); lx.moveTo(hx, hy); lx.lineTo(nx, ny); lx.stroke(); label(DATA.words[j][0], nx, ny, '#c9c8c2', 13); });
         label(w[0], hx, hy, '#d4ff3a', 17);
         label(DATA.cats[w[1]], hx, hy + 19, '#8b8a84', 11, false);
+      } else if (z > 1.6) {
+        // zoomed in: label the words facing you, skipping any that would overlap
+        const placed = [], fade = Math.min(1, (z - 1.6) / 0.8);
+        DATA.words.map((w, i) => [i, w]).filter(([i]) => { const [px, py, pz] = P[i]; return pz < 0.4 && px > 0 && px < W && py > 0 && py < H; })
+          .sort((a, b) => P[a[0]][2] - P[b[0]][2]).slice(0, 80)
+          .forEach(([i, w]) => {
+            const [px, py] = P[i];
+            if (placed.some(([qx, qy]) => Math.abs(qx - px) < 70 && Math.abs(qy - py) < 16)) return;
+            placed.push([px, py]);
+            label(w[0], px, py, w[1] === hot ? `rgba(212,255,58,${fade})` : `rgba(201,200,194,${0.85 * fade})`, 12, false);
+          });
       } else {
         DATA.words.map((w, i) => [i, w]).filter(([, w]) => w[1] === hot).sort((a, b) => P[a[0]][2] - P[b[0]][2]).slice(0, 5)
           .forEach(([i, w]) => label(w[0], P[i][0], P[i][1], 'rgba(212,255,58,.9)', 12, false));
@@ -289,6 +360,8 @@
     gl.uniform1f(U.uForce, hoverIdx >= 0 ? 0 : force);
     gl.uniform3f(U.uPulse, pulse[0], pulse[1], reduce ? -99 : pulse[2]);
     gl.uniform2f(U.uRot, rotX, rotY);
+    gl.uniform3f(U.uView, ...view);
+    gl.uniform1f(U.uZoom, z);
     gl.uniform1f(U.uHot, reduce ? -1 : hot);
     gl.uniform1f(U.uWord, hoverIdx >= 0 ? hoverIdx : -5);
     gl.uniform3f(U.uNb, ...nb);
