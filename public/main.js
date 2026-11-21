@@ -52,31 +52,6 @@
     setTimeout(() => { start = performance.now(); setTimeout(next, 140 + Math.random() * 160); }, delay);
   }
 
-  /* ---------- about: words light up as you read ---------- */
-  const lede = document.getElementById('lede');
-  const words = (() => {
-    const walk = node => [...node.childNodes].forEach(n => {
-      if (n.nodeType === 3) {
-        const frag = document.createDocumentFragment();
-        n.textContent.split(/(\s+)/).forEach(part => {
-          if (!part) return;
-          if (/^\s+$/.test(part)) { frag.append(part); return; }
-          const s = document.createElement('span'); s.className = 'w'; s.textContent = part; frag.append(s);
-        });
-        n.replaceWith(frag);
-      } else if (n.nodeType === 1) walk(n);
-    });
-    walk(lede);
-    return [...lede.querySelectorAll('.w')];
-  })();
-  let lit = -1;
-  const onScroll = () => {
-    const r = lede.getBoundingClientRect();
-    const p = Math.max(0, Math.min(1, (innerHeight * 0.88 - r.top) / (r.height + innerHeight * 0.3)));
-    const n = reduce ? words.length : Math.round(p * words.length);
-    if (n !== lit) { words.forEach((w, i) => w.classList.toggle('on', i < n)); if (n > lit && lit >= 0) bump(n - lit); lit = n; }
-  };
-  addEventListener('scroll', onScroll, { passive: true }); onScroll();
 
   /* ---------- hero: a rotating latent space ---------- */
   const hero = document.querySelector('.hero');

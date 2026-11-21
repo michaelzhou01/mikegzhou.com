@@ -106,13 +106,12 @@ html.has-cursor .cursor { display: block; position: fixed; left: 0; top: 0; z-in
 
 /* ---------- about ---------- */
 [id] { scroll-margin-top: 0; }
-.about { scroll-margin-top: 40px; max-width: 1280px; margin: 0 auto; padding: 22vh 36px 18vh; }
-.lede { font: 400 clamp(38px, 5.6vw, 88px)/1.04 var(--serif); letter-spacing: -0.02em; margin: 32px 0 40px; }
-.lede em { color: var(--accent); }
-.lede a { border-bottom: 1px solid currentColor; }
-.lede .w { opacity: .13; transition: opacity .35s; }
-.lede .w.on { opacity: 1; }
-.aside { color: var(--muted); }
+.about { scroll-margin-top: 40px; max-width: 1600px; margin: 0 auto; padding: 16vh 36px 14vh; }
+.lede { font-size: 16px; line-height: 1.7; color: #b9b8b2; max-width: 46ch; margin: 18px 0 10px; }
+.lede em { font-style: normal; color: var(--fg); }
+.lede a { color: var(--fg); border-bottom: 1px solid var(--dim); }
+.lede a:hover { color: var(--accent); border-color: var(--accent); }
+.aside { color: var(--dim); margin: 0; }
 
 /* ---------- footer ---------- */
 .foot { border-top: 1px solid var(--rule); padding: 12vh 36px 28px; overflow: hidden; }
@@ -141,7 +140,7 @@ html.has-cursor .cursor { display: block; position: fixed; left: 0; top: 0; z-in
   .stage p { font-size: 15px; }
   .story-copy { justify-content: flex-start; }
   .story-copy .kicker, .vis-corner { display: none; }
-  .about { padding: 16vh 16px 12vh; }
+  .about { padding: 12vh 16px 10vh; }
   .foot { padding: 10vh 16px 24px; }
 }
 @media (prefers-reduced-motion: reduce) {
