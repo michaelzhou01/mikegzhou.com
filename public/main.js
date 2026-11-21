@@ -227,8 +227,9 @@
   function frame() {
     const t = reduce ? 30 : now(), dt = Math.min(0.05, t - last); last = t;
     if (!drag) { vx *= 0.95; vy *= 0.95; }
-    rotX += vx + (reduce ? 0 : dt * 0.1);
-    rotY = Math.max(-1.2, Math.min(1.2, rotY + vy));
+    // minus signs: the near side of the cloud has negative z, so it should follow the pointer
+    rotX += -vx + (reduce ? 0 : dt * 0.1);
+    rotY = Math.max(-1.2, Math.min(1.2, rotY - vy));
     if (drag) { vx *= 0.5; vy *= 0.5; }
     if (t - hotAt > 2.2) { hot = (Math.random() * NCL) | 0; hotAt = t; bump(3); }
     const target = mouse.x > -9000 && !drag ? 0.45 + Math.min(0.55, speed * 0.02) : 0;
