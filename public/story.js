@@ -1,12 +1,7 @@
 (() => {
   const { reduce, bump } = window.MZ;
-  const sec = document.getElementById('story');
-  const cv = document.getElementById('story-canvas');
-  const ctx = cv.getContext('2d');
-  const stages = [...sec.querySelectorAll('.stage')];
-  const rail = [...sec.querySelectorAll('.rail li')];
-  const corner = document.getElementById('vis-corner');
-  const N = stages.length;
+  // the active section's canvas context and size; set by each mounted section before drawing
+  let ctx, cw = 0, ch = 0;
 
   const C = { fg: '#ecebe6', mute: '#8b8a84', dim: '#3a3a40', faint: '#232327', lime: '#d4ff3a', cyan: '#6ae3ff', bg: '#0d0d0f' };
   const MONO = '"JetBrains Mono", ui-monospace, Menlo, monospace';
@@ -17,13 +12,7 @@
   const lime = a => `rgba(212,255,58,${a})`;
   const cyan = a => `rgba(106,227,255,${a})`;
 
-  let cw = 0, ch = 0;
-  function size() {
-    const d = Math.min(devicePixelRatio || 1, 2), r = cv.getBoundingClientRect();
-    cw = r.width; ch = r.height;
-    cv.width = cw * d; cv.height = ch * d;
-    ctx.setTransform(d, 0, 0, d, 0, 0);
-  }
+  const coral = a => `rgba(255,122,92,${a})`;
   const font = (px, f = MONO, style = '') => { ctx.font = `${style} ${px}px ${f}`; };
   const box = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
 
@@ -263,34 +252,227 @@
     ctx.fillText(`ttft 184ms  ·  ${tps || '—'} tok/s  ·  ${Math.min(shown, OUT.length)}/${OUT.length} tokens${n >= ANSWER.length ? '  ·  [done]' : ''}`, x0, y + 18);
   }
 
-  const DRAW = [sRequest, sTokenize, sBatch, sPrefill, sDecode, sStream];
+  /* =====================================================================
+     speculative decoding
+     ===================================================================== */
+  const SCTX = 'Sunlight scatters off air molecules, and';
+  const DRAFT = [' blue', ' light', ' scatters', ' less', ' slowly'];
+  const ACC = 3, FIX = ' the';
 
-  /* ---------- loop ---------- */
-  let visible = false, raf = 0, last = -1;
-  const progress = () => { const r = sec.getBoundingClientRect(); return clamp(-r.top / (r.height - innerHeight)); };
-  function frame(ms) {
-    const t = ms / 1000, p = progress(), f = p * N;
-    const i = Math.min(N - 1, Math.floor(f)), lp = i === N - 1 ? clamp(f - i) : f - i;
-    if (i !== last) {
-      stages.forEach((s, k) => s.classList.toggle('on', k === i));
-      rail.forEach((s, k) => { s.classList.toggle('on', k === i); s.classList.toggle('done', k < i); });
-      if (i > last) bump(7 * (i + 1));
-      last = i;
-    }
-    rail.forEach((s, k) => s.style.setProperty('--lp', k === i ? lp.toFixed(3) : 0));
-    corner.textContent = `p = ${p.toFixed(2)}`;
-    ctx.clearRect(0, 0, cw, ch);
-    const fade = Math.min(i > 0 ? lp / 0.05 : 1, i < N - 1 ? (1 - lp) / 0.05 : 1);
-    ctx.save(); ctx.globalAlpha = clamp(fade);
-    ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1;
-    DRAW[i](reduce ? Math.max(lp, 0.999) : lp, t);
-    ctx.restore();
-    raf = visible ? requestAnimationFrame(frame) : 0;
+  function chipRow(items, y, fs, gap = 10) {
+    font(fs);
+    const pad = fs * 0.55;
+    const ws = items.map(s => ctx.measureText(s.trim()).width + pad * 2);
+    const total = ws.reduce((a, b) => a + b, 0) + gap * (items.length - 1);
+    let x = (cw - total) / 2;
+    return items.map((s, i) => { const r = { x, y, w: ws[i], h: fs * 2, s: s.trim(), pad }; x += ws[i] + gap; return r; });
   }
-  new IntersectionObserver(([e]) => {
-    visible = e.isIntersecting;
-    if (visible) { size(); if (!raf) raf = requestAnimationFrame(frame); }
-  }).observe(sec);
-  addEventListener('resize', () => { size(); });
-  document.fonts.ready.then(size);
+  function chip(c, { stroke, fill, text = C.fg, dash } = {}) {
+    box(c.x, c.y - c.h / 2, c.w, c.h, 7);
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { if (dash) ctx.setLineDash(dash); ctx.strokeStyle = stroke; ctx.stroke(); ctx.setLineDash([]); }
+    ctx.fillStyle = text; ctx.textBaseline = 'middle'; ctx.fillText(c.s, c.x + c.pad, c.y);
+  }
+  function specHeader(fs) {
+    let f = fs; font(f); while (ctx.measureText(SCTX + ' …').width > cw * 0.9 && f > 9) font(--f);
+    ctx.fillStyle = C.mute; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(SCTX + ' …', cw / 2, ch * 0.2);
+    font(10); ctx.fillStyle = C.dim; ctx.fillText('context so far', cw / 2, ch * 0.2 - 24);
+    ctx.textAlign = 'left';
+  }
+  const specFs = () => clamp(cw * 0.034, 12, 24);
+
+  function sDraft(lp, t) {
+    const fs = specFs(); specHeader(fs);
+    const row = chipRow(DRAFT, ch * 0.46, fs);
+    const shown = Math.min(DRAFT.length, Math.floor(clamp(lp * 1.4) * (DRAFT.length + 1)));
+    row.forEach((c, i) => {
+      if (i >= shown) { box(c.x, c.y - c.h / 2, c.w, c.h, 7); ctx.strokeStyle = C.faint; ctx.stroke(); return; }
+      const a = i === shown - 1 ? clamp((lp * 1.4 * (DRAFT.length + 1) - i)) : 1;
+      ctx.save(); ctx.globalAlpha *= a; ctx.translate(0, (1 - a) * -12);
+      chip(c, { stroke: cyan(.85), fill: cyan(.06), dash: [4, 3] });
+      ctx.restore();
+    });
+    // draft model ticks
+    font(11); ctx.fillStyle = C.cyan; ctx.textAlign = 'center';
+    ctx.fillText(`draft model · ${shown}/${DRAFT.length} guesses`, cw / 2, ch * 0.46 + fs * 2.4);
+    ctx.textAlign = 'left';
+    const bx = (cw - 5 * 34) / 2, by = ch * 0.72;
+    for (let i = 0; i < 5; i++) { ctx.fillStyle = i < shown ? cyan(.8) : C.faint; ctx.fillRect(bx + i * 34, by, 28, 8); }
+    font(10); ctx.fillStyle = C.mute; ctx.textAlign = 'center';
+    ctx.fillText('~3 ms per draft step', cw / 2, by + 26); ctx.textAlign = 'left';
+  }
+
+  function sVerify(lp, t) {
+    const fs = specFs(); specHeader(fs);
+    const row = chipRow(DRAFT, ch * 0.46, fs);
+    const s = clamp(lp * 1.5);
+    const x0 = row[0].x, x1 = row[row.length - 1].x + row[row.length - 1].w;
+    // the single target pass sweeping across
+    const sx = x0 + (x1 - x0) * s;
+    const g = ctx.createLinearGradient(sx - 80, 0, sx, 0);
+    g.addColorStop(0, lime(0)); g.addColorStop(1, lime(.22));
+    ctx.fillStyle = g; ctx.fillRect(sx - 80, row[0].y - fs * 1.6, 80, fs * 3.2);
+    ctx.fillStyle = C.lime; ctx.fillRect(sx, row[0].y - fs * 1.6, 2, fs * 3.2);
+    row.forEach((c, i) => {
+      const done = s > (i + 0.6) / row.length;
+      if (!done) { chip(c, { stroke: cyan(.6), dash: [4, 3] }); return; }
+      if (i < ACC) chip(c, { stroke: lime(.9), fill: lime(.12) });
+      else if (i === ACC) {
+        chip(c, { stroke: coral(.9), fill: coral(.08), text: C.mute });
+        ctx.strokeStyle = coral(.9); ctx.beginPath(); ctx.moveTo(c.x + 6, c.y); ctx.lineTo(c.x + c.w - 6, c.y); ctx.stroke();
+        const fx = chipRow([FIX], 0, fs)[0];
+        chip({ ...fx, x: c.x + (c.w - fx.w) / 2, y: c.y + fs * 2.7 }, { fill: C.lime, text: '#0a0a0b' });
+      } else { ctx.save(); ctx.globalAlpha *= 0.3; chip(c, { stroke: C.dim, text: C.mute }); ctx.restore(); }
+      font(fs); ctx.textAlign = 'center';
+      ctx.fillStyle = i < ACC ? C.lime : i === ACC ? coral(1) : C.dim;
+      ctx.fillText(i < ACC ? '✓' : i === ACC ? '✗' : '–', c.x + c.w / 2, c.y - fs * 1.9);
+      ctx.textAlign = 'left';
+    });
+    // bracket: one pass over all five
+    const by = ch * 0.46 + fs * 4.6;
+    ctx.strokeStyle = lime(.6);
+    ctx.beginPath(); ctx.moveTo(x0, by - 6); ctx.lineTo(x0, by); ctx.lineTo(x1, by); ctx.lineTo(x1, by - 6); ctx.stroke();
+    font(11); ctx.fillStyle = C.lime; ctx.textAlign = 'center';
+    ctx.fillText('target model · one forward pass over all five', (x0 + x1) / 2, by + 20);
+    ctx.textAlign = 'left';
+  }
+
+  function sCommit(lp, t) {
+    const fs = specFs(); specHeader(fs);
+    const e = ease(lp * 2.2);
+    const keep = [...DRAFT.slice(0, ACC), FIX];
+    const row = chipRow(keep, ch * 0.4, fs);
+    row.forEach((c, i) => chip(c, i === ACC ? { fill: C.lime, text: '#0a0a0b' } : { stroke: lime(.9), fill: lime(.14) }));
+    // rejected drafts fall away
+    const rej = chipRow(DRAFT.slice(ACC), ch * 0.4 + fs * 2.6 + e * 40, fs);
+    ctx.save(); ctx.globalAlpha *= 1 - e; rej.forEach(c => chip(c, { stroke: coral(.7), text: C.mute })); ctx.restore();
+    font(11); ctx.fillStyle = C.lime; ctx.textAlign = 'center';
+    ctx.fillText('+4 tokens from 1 target pass', cw / 2, ch * 0.4 - fs * 2);
+    ctx.textAlign = 'left';
+    // timeline comparison
+    const m = 28, full = cw - m * 2, scale = full / 130, grow = clamp((lp - 0.15) * 2);
+    const rowY = [ch * 0.66, ch * 0.66 + 54];
+    font(11);
+    ctx.fillStyle = C.mute; ctx.fillText('standard decode', m, rowY[0] - 12);
+    for (let i = 0; i < 4; i++) { const w = 30 * scale * grow; ctx.fillStyle = i % 2 ? '#3a3a42' : '#4a4a52'; ctx.fillRect(m + i * 30 * scale * grow, rowY[0], w - 2, 14); }
+    ctx.fillStyle = C.mute; ctx.fillText('speculative', m, rowY[1] - 12);
+    let x = m;
+    for (let i = 0; i < 5; i++) { const w = 3 * scale * grow; ctx.fillStyle = cyan(.85); ctx.fillRect(x, rowY[1], Math.max(0, w - 2), 14); x += w; }
+    ctx.fillStyle = C.lime; ctx.fillRect(x, rowY[1], Math.max(0, 30 * scale * grow - 2), 14);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = C.mute; ctx.fillText(`4 tokens · ${Math.round(120 * grow)} ms`, cw - m, rowY[0] - 12);
+    ctx.fillStyle = C.lime; ctx.fillText(`4 tokens · ${Math.round(45 * grow)} ms${grow >= 1 ? '  →  ~2.7× here' : ''}`, cw - m, rowY[1] - 12);
+    ctx.textAlign = 'left';
+  }
+
+  /* =====================================================================
+     quantization
+     ===================================================================== */
+  const normal = r => { let u = 0; while (!u) u = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(6.283 * r()); };
+  const QR = 12, QC = 24;
+  const QW = (() => { const r = rng(11); return Array.from({ length: QR * QC }, () => normal(r) * 0.95); })();
+  const HIST = (() => { const r = rng(23), b = new Array(72).fill(0); for (let i = 0; i < 6000; i++) { const v = normal(r) * 0.95, k = Math.floor((v + 3) / 6 * 72); if (k >= 0 && k < 72) b[k]++; } return b; })();
+  const QS = [
+    { bits: 16, name: 'bf16', levels: 0, gb: 140 },
+    { bits: 8, name: 'fp8', levels: 40, gb: 70 },
+    { bits: 4, name: 'int4', levels: 16, gb: 35 },
+  ];
+  const qz = (w, L) => { if (!L) return w; const step = 6 / (L - 1); return Math.round((clamp(w, -3, 3) + 3) / step) * step - 3; };
+
+  const quantStage = si => (lp, t) => {
+    const cur = QS[si], prev = QS[Math.max(0, si - 1)];
+    const m = si === 0 ? 1 : ease(lp * 2.4);
+    const pad = cw < 500 ? 16 : 28;
+    // header: big bit count + memory bar
+    const big = clamp(cw * 0.09, 40, 84);
+    font(big, SERIF, 'italic'); ctx.textBaseline = 'alphabetic'; ctx.fillStyle = C.fg;
+    const label = `${cur.bits} bits`;
+    ctx.fillText(label, pad, pad + big * 0.8);
+    const lw = ctx.measureText(label).width;
+    font(11); ctx.fillStyle = C.lime; ctx.fillText(cur.name, pad + lw + 12, pad + big * 0.8);
+    const gb = prev.gb + (cur.gb - prev.gb) * m;
+    const barY = pad + big + 18, barW = cw - pad * 2, scaleGB = barW / 160;
+    ctx.fillStyle = C.faint; ctx.fillRect(pad, barY, barW, 12);
+    ctx.fillStyle = gb <= 80 ? C.lime : coral(.9); ctx.fillRect(pad, barY, gb * scaleGB, 12);
+    const gx = pad + 80 * scaleGB;
+    ctx.strokeStyle = C.fg; ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(gx, barY - 6); ctx.lineTo(gx, barY + 18); ctx.stroke(); ctx.setLineDash([]);
+    font(10); ctx.textBaseline = 'middle';
+    ctx.fillStyle = C.mute; ctx.fillText('80 GB · one GPU', gx + 6, barY + 26);
+    ctx.fillStyle = gb <= 80 ? C.lime : coral(1); ctx.fillText(`${Math.round(gb)} GB · 70B params`, pad, barY + 26);
+    // weight matrix
+    const histH = Math.max(60, ch * 0.18);
+    const top = barY + 70, bottom = ch - histH - 44;
+    const cell = Math.min((cw - pad * 2) / QC, (bottom - top) / QR);
+    const mx = (cw - cell * QC) / 2;
+    for (let r = 0; r < QR; r++) for (let c = 0; c < QC; c++) {
+      const w = QW[r * QC + c];
+      const v = qz(w, prev.levels) + (qz(w, cur.levels) - qz(w, prev.levels)) * m;
+      const a = Math.min(1, Math.abs(v) / 2.2) * 0.92 + 0.04;
+      ctx.fillStyle = v >= 0 ? lime(a) : cyan(a);
+      ctx.fillRect(mx + c * cell + 1, top + r * cell + 1, cell - 2, cell - 2);
+    }
+    font(10); ctx.fillStyle = C.dim; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(`W[${QR}×${QC}] · lime > 0 > cyan`, mx, top - 8);
+    // histogram + quantization levels
+    const hy = ch - 30, hx = pad, hw = cw - pad * 2, bw = hw / HIST.length, maxH = Math.max(...HIST);
+    HIST.forEach((n, i) => { ctx.fillStyle = '#34343a'; const h = (n / maxH) * histH; ctx.fillRect(hx + i * bw + 0.5, hy - h, bw - 1, h); });
+    const lines = (L, alpha) => {
+      if (!L || alpha <= 0) return;
+      ctx.strokeStyle = lime(alpha * (L > 20 ? 0.35 : 0.85));
+      for (let i = 0; i < L; i++) { const x = hx + (i / (L - 1)) * hw; ctx.beginPath(); ctx.moveTo(x, hy - histH - 6); ctx.lineTo(x, hy + 4); ctx.stroke(); }
+    };
+    lines(prev.levels, si === 0 ? 0 : 1 - m); lines(cur.levels, m);
+    font(10); ctx.fillStyle = C.mute;
+    ctx.fillText(cur.levels ? `weight distribution · ${cur.name === 'fp8' ? 'coarser grid' : '16 levels'}` : 'weight distribution · ~continuous', hx, hy + 18);
+  };
+
+  /* =====================================================================
+     mounting: each section pins, tracks scroll progress, and draws
+     ===================================================================== */
+  function mount(sec, DRAW) {
+    const cv = sec.querySelector('canvas'), my = cv.getContext('2d');
+    const stages = [...sec.querySelectorAll('.stage')], rail = [...sec.querySelectorAll('.rail li')];
+    const corner = sec.querySelector('.vis-corner');
+    const N = DRAW.length;
+    let w = 0, h = 0, visible = false, raf = 0, last = -1;
+    const size = () => {
+      const d = Math.min(devicePixelRatio || 1, 2), r = cv.getBoundingClientRect();
+      w = r.width; h = r.height; cv.width = w * d; cv.height = h * d; my.setTransform(d, 0, 0, d, 0, 0);
+    };
+    const progress = () => { const r = sec.getBoundingClientRect(); return clamp(-r.top / (r.height - innerHeight)); };
+    function frame(ms) {
+      const t = ms / 1000, p = progress(), f = p * N;
+      const i = Math.min(N - 1, Math.floor(f)), lp = i === N - 1 ? clamp(f - i) : f - i;
+      if (i !== last) {
+        stages.forEach((s, k) => s.classList.toggle('on', k === i));
+        rail.forEach((s, k) => { s.classList.toggle('on', k === i); s.classList.toggle('done', k < i); });
+        if (i > last) bump(7 * (i + 1));
+        last = i;
+      }
+      rail.forEach((s, k) => s.style.setProperty('--lp', k === i ? lp.toFixed(3) : 0));
+      if (corner) corner.textContent = `p = ${p.toFixed(2)}`;
+      ctx = my; cw = w; ch = h;
+      ctx.clearRect(0, 0, cw, ch);
+      const fade = Math.min(i > 0 ? lp / 0.05 : 1, i < N - 1 ? (1 - lp) / 0.05 : 1);
+      ctx.save(); ctx.globalAlpha = clamp(fade);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.lineWidth = 1;
+      DRAW[i](reduce ? Math.max(lp, 0.999) : lp, t);
+      ctx.restore();
+      raf = visible ? requestAnimationFrame(frame) : 0;
+    }
+    new IntersectionObserver(([e]) => {
+      visible = e.isIntersecting;
+      if (visible) { size(); if (!raf) raf = requestAnimationFrame(frame); }
+    }).observe(sec);
+    addEventListener('resize', size);
+    document.fonts.ready.then(size);
+  }
+
+  const SETS = {
+    anatomy: [sRequest, sTokenize, sBatch, sPrefill, sDecode, sStream],
+    spec: [sDraft, sVerify, sCommit],
+    quant: [quantStage(0), quantStage(1), quantStage(2)],
+  };
+  document.querySelectorAll('[data-story]').forEach(sec => mount(sec, SETS[sec.dataset.story]));
 })();

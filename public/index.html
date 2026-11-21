@@ -38,7 +38,9 @@
   <header class="hud mono">
     <a href="#top" class="hud-brand"><span class="dot"></span>mike zhou</a>
     <nav class="hud-nav">
-      <a href="#story">request</a>
+      <a href="#anatomy">request</a>
+      <a href="#spec">speculation</a>
+      <a href="#quant">bits</a>
       <a href="#about">about</a>
       <span class="hud-clock" id="clock">nyc --:--:--</span>
     </nav>
@@ -46,15 +48,16 @@
 
   <section class="hero" id="top">
     <canvas id="gl" aria-hidden="true"></canvas>
-    <h1 class="hero-name">Mike Zhou</h1>
     <div class="hero-copy">
+      <h1 class="hero-name">Mike Zhou</h1>
       <p class="stream mono" id="stream" data-text="engineer · inference infrastructure @ reflection · new york"></p>
       <p class="metrics mono" id="metrics">&nbsp;</p>
     </div>
-    <div class="hero-foot mono">
-      <span class="hint">move to attend · click to prefill</span>
-      <a href="#story" class="cue">scroll <span>↓</span></a>
+    <div class="hero-label mono" aria-hidden="true">
+      <span>fig. 0 — latent space</span>
+      <span class="dim">16 clusters · drag to rotate · click to pulse</span>
     </div>
+    <a href="#anatomy" class="hero-cue mono">scroll <span>↓</span></a>
   </section>
 
   <div class="ticker" aria-hidden="true">
@@ -64,7 +67,7 @@
     </div>
   </div>
 
-  <section class="story" id="story" style="--n:6">
+  <section class="story" id="anatomy" data-story="anatomy" style="--n:6">
     <div class="pin">
       <div class="story-copy">
         <p class="kicker mono"><span>01</span> anatomy of a request</p>
@@ -81,25 +84,64 @@
         </div>
       </div>
       <div class="story-vis">
-        <canvas id="story-canvas" aria-label="Diagram of a request moving through an inference server."></canvas>
-        <span class="vis-corner mono" id="vis-corner">p = 0.00</span>
+        <canvas class="story-canvas" aria-label="Diagram of a request moving through an inference server."></canvas>
+        <span class="vis-corner mono">p = 0.00</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="story" id="spec" data-story="spec" style="--n:3">
+    <div class="pin">
+      <div class="story-copy">
+        <p class="kicker mono"><span>02</span> speculative decoding</p>
+        <ol class="rail mono"><li>draft</li><li>verify</li><li>commit</li></ol>
+        <div class="stages">
+          <article class="stage on"><span class="num mono">00 / draft</span><h2>Guess ahead.</h2><p>A small, fast model drafts the next few tokens. Each guess is cheap.</p></article>
+          <article class="stage"><span class="num mono">01 / verify</span><h2>Check every guess at once.</h2><p>The big model scores all the drafts in a single forward pass and keeps them up to the first miss.</p></article>
+          <article class="stage"><span class="num mono">02 / commit</span><h2>Several tokens, one pass.</h2><p>The accepted tokens plus one correction land together. The output is identical, just faster.</p></article>
+        </div>
+      </div>
+      <div class="story-vis">
+        <canvas class="story-canvas" aria-label="Diagram of speculative decoding: a draft model guesses tokens, the target model verifies them in one pass."></canvas>
+        <span class="vis-corner mono">p = 0.00</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="story" id="quant" data-story="quant" style="--n:3">
+    <div class="pin">
+      <div class="story-copy">
+        <p class="kicker mono"><span>03</span> quantization</p>
+        <ol class="rail mono"><li>bf16</li><li>fp8</li><li>int4</li></ol>
+        <div class="stages">
+          <article class="stage on"><span class="num mono">00 / bf16</span><h2>Sixteen bits a weight.</h2><p>A 70B-parameter model at 16 bits is about 140 GB, more than any single GPU holds.</p></article>
+          <article class="stage"><span class="num mono">01 / fp8</span><h2>Half the bits.</h2><p>Snap each weight to a coarser grid. The model barely notices, and memory traffic halves.</p></article>
+          <article class="stage"><span class="num mono">02 / int4</span><h2>Sixteen levels.</h2><p>Now you can see the grid. The art is choosing where those levels fall, so it still fits and still thinks.</p></article>
+        </div>
+      </div>
+      <div class="story-vis">
+        <canvas class="story-canvas" aria-label="Diagram of model weights being quantized from 16 to 8 to 4 bits."></canvas>
+        <span class="vis-corner mono">p = 0.00</span>
       </div>
     </div>
   </section>
 
   <section class="about" id="about">
-    <p class="kicker mono"><span>02</span> about</p>
+    <p class="kicker mono"><span>04</span> about</p>
     <p class="lede" id="lede">I'm an engineer working on <em>inference infrastructure</em> at <a href="https://reflection.ai" target="_blank" rel="noopener">Reflection</a> in New York. That's the part of the stack that takes a trained model and makes it answer quickly, cheaply, and at scale.</p>
     <p class="aside mono">more here eventually.</p>
   </section>
 
   <footer class="foot">
+    <div class="foot-count" aria-live="off">
+      <span class="foot-num" id="tok">0</span>
+      <span class="foot-cap mono">tokens generated on this page so far.<br>keep scrolling, it counts.</span>
+    </div>
     <div class="foot-row mono">
       <a href="https://github.com/michaelzhou01" target="_blank" rel="noopener">github ↗</a>
-      <span><span id="tok">0</span> tokens generated on this page</span>
+      <span>mike zhou · new york</span>
       <span>© <span id="y"></span></span>
     </div>
-    <div class="foot-name" aria-hidden="true">Mike Zhou</div>
   </footer>
 
   <script src="/main.js"></script>
