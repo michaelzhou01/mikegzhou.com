@@ -40,8 +40,7 @@
     <nav class="hud-nav">
       <a href="#about">about</a>
       <a href="#anatomy">request</a>
-      <a href="#spec">speculation</a>
-      <a href="#quant">bits</a>
+      <a href="#figures">figures</a>
       <span class="hud-clock" id="clock">nyc --:--:--</span>
     </nav>
   </header>
@@ -89,39 +88,35 @@
     </div>
   </section>
 
-  <section class="story" id="spec" data-story="spec" style="--n:3">
-    <div class="pin">
-      <div class="story-copy">
-        <p class="kicker mono"><span>03</span> speculative decoding</p>
-        <ol class="rail mono"><li>draft</li><li>verify</li><li>commit</li></ol>
-        <div class="stages">
-          <article class="stage on"><span class="num mono">00 / draft</span><h2>Guess ahead.</h2><p>A small, fast model drafts the next few tokens. Each guess is cheap.</p></article>
-          <article class="stage"><span class="num mono">01 / verify</span><h2>Check every guess at once.</h2><p>The big model scores all the drafts in a single forward pass and keeps them up to the first miss.</p></article>
-          <article class="stage"><span class="num mono">02 / commit</span><h2>Several tokens, one pass.</h2><p>The accepted tokens plus one correction land together. The output is identical, just faster.</p></article>
-        </div>
-      </div>
-      <div class="story-vis">
-        <canvas class="story-canvas" aria-label="Diagram of speculative decoding: a draft model guesses tokens, the target model verifies them in one pass."></canvas>
-        <span class="vis-corner mono">p = 0.00</span>
-      </div>
-    </div>
-  </section>
-
-  <section class="story" id="quant" data-story="quant" style="--n:3">
-    <div class="pin">
-      <div class="story-copy">
-        <p class="kicker mono"><span>04</span> quantization</p>
-        <ol class="rail mono"><li>bf16</li><li>fp8</li><li>int4</li></ol>
-        <div class="stages">
-          <article class="stage on"><span class="num mono">00 / bf16</span><h2>Sixteen bits a weight.</h2><p>A 70B-parameter model at 16 bits is about 140 GB, more than any single GPU holds.</p></article>
-          <article class="stage"><span class="num mono">01 / fp8</span><h2>Half the bits.</h2><p>Snap each weight to a coarser grid. The model barely notices, and memory traffic halves.</p></article>
-          <article class="stage"><span class="num mono">02 / int4</span><h2>Sixteen levels.</h2><p>Now you can see the grid. The art is choosing where those levels fall, so it still fits and still thinks.</p></article>
-        </div>
-      </div>
-      <div class="story-vis">
-        <canvas class="story-canvas" aria-label="Diagram of model weights being quantized from 16 to 8 to 4 bits."></canvas>
-        <span class="vis-corner mono">p = 0.00</span>
-      </div>
+  <section class="figs" id="figures">
+    <p class="kicker mono"><span>03</span> figures</p>
+    <p class="figs-intro">A few more pieces of the stack. Open one to step through it.</p>
+    <div class="fig-grid">
+      <button class="fig" data-fig="spec" type="button">
+        <canvas aria-hidden="true"></canvas>
+        <span class="fig-meta mono"><span class="fig-n">fig. 2</span>speculative decoding</span>
+        <span class="fig-cap">Guess a few tokens ahead, then check them all in one pass.</span>
+      </button>
+      <button class="fig" data-fig="quant" type="button">
+        <canvas aria-hidden="true"></canvas>
+        <span class="fig-meta mono"><span class="fig-n">fig. 3</span>quantization</span>
+        <span class="fig-cap">Fewer bits per weight, so a big model fits and moves faster.</span>
+      </button>
+      <button class="fig" data-fig="moe" type="button">
+        <canvas aria-hidden="true"></canvas>
+        <span class="fig-meta mono"><span class="fig-n">fig. 4</span>mixture of experts</span>
+        <span class="fig-cap">Each token visits only 2 of 8 experts.</span>
+      </button>
+      <button class="fig" data-fig="tp" type="button">
+        <canvas aria-hidden="true"></canvas>
+        <span class="fig-meta mono"><span class="fig-n">fig. 5</span>tensor parallelism</span>
+        <span class="fig-cap">One layer split across eight GPUs, then summed around a ring.</span>
+      </button>
+      <button class="fig" data-fig="roofline" type="button">
+        <canvas aria-hidden="true"></canvas>
+        <span class="fig-meta mono"><span class="fig-n">fig. 6</span>latency vs. throughput <span class="fig-live">interactive</span></span>
+        <span class="fig-cap">Drag the batch size and watch where the GPU hits its limit.</span>
+      </button>
     </div>
   </section>
 
@@ -137,6 +132,22 @@
     </div>
   </footer>
 
+
+  <div class="figview" id="figview" hidden role="dialog" aria-modal="true" aria-labelledby="fv-title">
+    <div class="fv-inner">
+      <header class="fv-head mono"><span id="fv-num">fig.</span><button type="button" id="fv-close" aria-label="Close figure">esc ✕</button></header>
+      <div class="fv-body">
+        <div class="fv-copy">
+          <h2 id="fv-title"></h2>
+          <ol class="rail mono" id="fv-rail"></ol>
+          <div class="fv-stage" id="fv-stage"><span class="num mono" id="fv-stage-num"></span><h3 id="fv-stage-h"></h3><p id="fv-stage-p"></p></div>
+          <div class="fv-controls mono" id="fv-controls"></div>
+          <div class="fv-nav mono"><button type="button" id="fv-prev">← prev</button><span id="fv-count"></span><button type="button" id="fv-next">next →</button></div>
+        </div>
+        <div class="fv-vis"><canvas id="fv-canvas" aria-label="Figure animation"></canvas></div>
+      </div>
+    </div>
+  </div>
 
   <script src="/main.js"></script>
   <script src="/story.js"></script>
